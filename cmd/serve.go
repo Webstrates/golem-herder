@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func SoulHandler(w http.ResponseWriter, r *http.Request) {
+func EmetHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
@@ -102,7 +102,7 @@ var serveCmd = &cobra.Command{
 		r := mux.NewRouter()
 
 		r.HandleFunc("/", HomeHandler)
-		r.HandleFunc("/soul", SoulHandler)
+		r.HandleFunc("/emet", EmetHandler)
 		r.HandleFunc("/ls", ListHandler)
 		r.HandleFunc("/spawn/{id}", SpawnHandler)
 		r.HandleFunc("/reset/{id}", ResetHandler)
