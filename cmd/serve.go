@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -17,8 +18,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type Emet struct {
+	Id      string
+	BaseUrl string
+}
+
 func EmetHandler(w http.ResponseWriter, r *http.Request) {
 
+	tmpl, err := template.ParseFiles("emet.tmpl.js")
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+
+	emet := Emet{BaseUrl: "emet.cs.au.dk"}
+
+	err = tmpl.Execute(w, emet)
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
