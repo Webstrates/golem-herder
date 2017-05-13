@@ -2,18 +2,17 @@ package cmd
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +29,7 @@ func EmetHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
-	emet := Emet{BaseUrl: "emet.cs.au.dk"}
+	emet := Emet{BaseUrl: "localhost"}
 
 	err = tmpl.Execute(w, emet)
 }
@@ -73,32 +72,36 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println(vars["id"])
 
+	w.Write([]byte(vars["id"]))
+
 	// TODO use id
 
-	ctx := context.Background()
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-	}
+	/*
+		ctx := context.Background()
+		cli, err := client.NewEnvClient()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 
-	imageName := "webstrates/golem"
+		imageName := "webstrates/golem"
 
-	out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-	}
-	io.Copy(os.Stdout, out)
+		out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+		}
+		io.Copy(os.Stdout, out)
 
-	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: imageName,
-	}, nil, nil, "")
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-	}
+		resp, err := cli.ContainerCreate(ctx, &container.Config{
+			Image: imageName,
+		}, nil, nil, "")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 
-	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-		http.Error(w, err.Error(), 500)
-	}
+		if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
+	*/
 
 	// TODO return json
 
@@ -123,14 +126,15 @@ var serveCmd = &cobra.Command{
 		r.HandleFunc("/kill/{id}", KillHandler)
 
 		srv := &http.Server{
-			Handler: r,
-			Addr:    ":8000",
+			Handler:   handlers.CORS()(r),
+			Addr:      ":8000",
+			TLSConfig: &tls.Config{},
 			// Good practice: enforce timeouts for servers you create!
 			WriteTimeout: 15 * time.Second,
 			ReadTimeout:  15 * time.Second,
 		}
 
-		log.Fatal(srv.ListenAndServe())
+		log.Fatal(srv.ListenAndServeTLS("server.crt", "server.key"))
 	},
 }
 
