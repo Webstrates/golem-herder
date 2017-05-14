@@ -1,20 +1,15 @@
 package cmd
 
 import (
-	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
+	"github.com/fsouza/go-dockerclient"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -41,16 +36,20 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 func ListHandler(w http.ResponseWriter, r *http.Request) {
-	cli, err := client.NewEnvClient()
+
+	client, err := docker.NewClientFromEnv()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
-	}
-	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{})
-	if err != nil {
-		http.Error(w, err.Error(), 500)
+		return
 	}
 
-	golems := []types.Container{}
+	containers, err := client.ListContainers(docker.ListContainersOptions{All: false})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	golems := []docker.APIContainers{}
 	for _, container := range containers {
 		if container.Image == "golem" {
 			golems = append(golems, container)
@@ -71,44 +70,54 @@ func ListHandler(w http.ResponseWriter, r *http.Request) {
 func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	// we need id for webstrate
-	vars := mux.Vars(r)
+
+	client, err := docker.NewClientFromEnv()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 
 	// TODO figure out port
 	// TODO if container is already running then return
 
-	w.Write([]byte(vars["id"]))
+	//w.Write([]byte(vars["id"]))
 
 	// TODO use id
 
+	vars := mux.Vars(r)
 	wsid := vars["id"]
 
-	ctx := context.Background()
-	cli, err := client.NewEnvClient()
+	//ctx := context.Background()
+
+	err = client.PullImage(docker.PullImageOptions{
+		Repository: "webstrates/golem",
+		Tag:        "latest",
+	}, docker.AuthConfiguration{})
 	if err != nil {
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
-	imageName := "webstrates/golem"
-
-	out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-	}
-	io.Copy(os.Stdout, out)
-
-	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: imageName,
-		Env: []string{
-			fmt.Sprintf("WEBSTRATEID=%s", wsid),
+	container, err := client.CreateContainer(
+		docker.CreateContainerOptions{
+			Name: fmt.Sprintf("golem-%s", wsid),
+			Config: &docker.Config{
+				Image: "webstrates/golem:latest",
+				ExposedPorts: map[docker.Port]struct{}{
+					"9222/tcp": {},
+				},
+			},
 		},
-	}, nil, nil, fmt.Sprintf("golem-%s", wsid))
+	)
 	if err != nil {
+		fmt.Println("Error creating container" + err.Error())
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
-	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-		http.Error(w, err.Error(), 500)
-	}
+	fmt.Println(container.ID)
+
+	//client.StartContainer(container.ID,
 
 	// TODO return json
 
