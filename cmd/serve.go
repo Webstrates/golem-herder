@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/fsouza/go-dockerclient"
 	"github.com/gorilla/handlers"
@@ -42,12 +43,14 @@ func ListHandler(w http.ResponseWriter, r *http.Request) {
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
+		log.WithError(err).Error("Error creating docker client")
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
 	containers, err := client.ListContainers(docker.ListContainersOptions{All: false})
 	if err != nil {
+		log.WithError(err).Error("Error listing containers")
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -65,10 +68,6 @@ func ListHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(data)
-
-	for _, container := range golems {
-		fmt.Println(container.ID)
-	}
 }
 func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -76,6 +75,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
+		log.WithError(err).Error("Could create docker client")
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -92,7 +92,11 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	//ctx := context.Background()
 
-	fmt.Println("Pulling image")
+	repository := "webstrates/golem"
+	tag := "latest"
+
+	log.WithFields(log.Fields{"image": fmt.Sprintf("%s:%s", repository, tag)}).Info("Pulling image")
+
 	err = client.PullImage(docker.PullImageOptions{
 		Repository: "webstrates/golem",
 		Tag:        "latest",
@@ -101,24 +105,25 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	fmt.Println("Pull done")
+	log.WithFields(log.Fields{"image": fmt.Sprintf("%s:%s", repository, tag)}).Info("Pull done")
 
 	// Get current dir
 	dir, err := os.Getwd()
 	if err != nil {
+		log.WithError(err).Error("Could not discover current directory")
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	fmt.Println("dir is " + dir)
 
 	seccomp, err := ioutil.ReadFile(filepath.Join(dir, "chrome.json"))
 	if err != nil {
-		fmt.Println("Error reading seccomp" + err.Error())
+		log.WithError(err).Error("Could not read seccomp profile")
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	fmt.Println("Creating container")
+	// TODO add environment variables (WEBSTRATEID)
+	log.WithFields(log.Fields{"webstrateid": wsid}).Info("Creating container")
 	container, err := client.CreateContainer(
 		docker.CreateContainerOptions{
 			Name: fmt.Sprintf("golem-%s", wsid),
@@ -145,30 +150,28 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		fmt.Println("Error creating container" + err.Error())
+		log.WithError(err).Error("Error creating container")
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	fmt.Println("Created container")
+	log.WithFields(log.Fields{"webstrateid": wsid, "containerid": container.ID}).Info("Created container, starting ...")
 
-	fmt.Println(container.ID)
-	fmt.Printf("seccomp=%s", filepath.Join(dir, "chrome.json"))
-
-	fmt.Println("Starting container")
 	err = client.StartContainer(container.ID, nil)
 
 	if err != nil {
-		fmt.Println("Error starting container" + err.Error())
+		log.WithError(err).Error("Error starting container")
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	fmt.Println("Started container")
-	// TODO return json
+
+	// TODO return something
 
 }
 func ResetHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO reset handler
 }
 func KillHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO kill handler
 }
 
 // serveCmd represents the serve command
