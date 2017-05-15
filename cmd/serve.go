@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/fsouza/go-dockerclient"
@@ -89,6 +92,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	//ctx := context.Background()
 
+	fmt.Println("Pulling image")
 	err = client.PullImage(docker.PullImageOptions{
 		Repository: "webstrates/golem",
 		Tag:        "latest",
@@ -97,7 +101,24 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	fmt.Println("Pull done")
 
+	// Get current dir
+	dir, err := os.Getwd()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	fmt.Println("dir is " + dir)
+
+	seccomp, err := ioutil.ReadFile(filepath.Join(dir, "chrome.json"))
+	if err != nil {
+		fmt.Println("Error reading seccomp" + err.Error())
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	fmt.Println("Creating container")
 	container, err := client.CreateContainer(
 		docker.CreateContainerOptions{
 			Name: fmt.Sprintf("golem-%s", wsid),
@@ -107,6 +128,20 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 					"9222/tcp": {},
 				},
 			},
+			HostConfig: &docker.HostConfig{
+				Links: []string{"webstrates"},
+				PortBindings: map[docker.Port][]docker.PortBinding{
+					"9222/tcp": []docker.PortBinding{
+						docker.PortBinding{
+							HostIP:   "0.0.0.0",
+							HostPort: "9222", // TODO make this dynamic
+						},
+					},
+				},
+				SecurityOpt: []string{
+					fmt.Sprintf("seccomp=%s", string(seccomp)),
+				},
+			},
 		},
 	)
 	if err != nil {
@@ -114,11 +149,20 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	fmt.Println("Created container")
 
 	fmt.Println(container.ID)
+	fmt.Printf("seccomp=%s", filepath.Join(dir, "chrome.json"))
 
-	//client.StartContainer(container.ID,
+	fmt.Println("Starting container")
+	err = client.StartContainer(container.ID, nil)
 
+	if err != nil {
+		fmt.Println("Error starting container" + err.Error())
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	fmt.Println("Started container")
 	// TODO return json
 
 }
