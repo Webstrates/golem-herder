@@ -203,14 +203,14 @@ var serveCmd = &cobra.Command{
 
 		srv := &http.Server{
 			Handler:   handlers.CORS()(r),
-			Addr:      ":443",
+			Addr:      ":80",
 			TLSConfig: &tls.Config{},
 			// Good practice: enforce timeouts for servers you create!
 			WriteTimeout: 15 * time.Second,
 			ReadTimeout:  15 * time.Second,
 		}
 
-		log.Fatal(srv.ListenAndServeTLS("server.crt", "server.key"))
+		log.Fatal(srv.ListenAndServe())
 	},
 }
 
