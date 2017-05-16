@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,6 +25,20 @@ type Emet struct {
 	BaseUrl string
 }
 
+func GetPort() int {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		panic(err)
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
 func EmetHandler(w http.ResponseWriter, r *http.Request) {
 
 	tmpl, err := template.ParseFiles("emet.tmpl.js")
@@ -31,7 +46,7 @@ func EmetHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
-	emet := Emet{BaseUrl: "emet-server.cc.au.dk"}
+	emet := Emet{BaseUrl: "emet.cc.au.dk"}
 
 	err = tmpl.Execute(w, emet)
 }
@@ -72,6 +87,8 @@ func ListHandler(w http.ResponseWriter, r *http.Request) {
 func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	// we need id for webstrate
+	vars := mux.Vars(r)
+	wsid := vars["id"]
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
@@ -79,16 +96,6 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-
-	// TODO figure out port
-	// TODO if container is already running then return
-
-	//w.Write([]byte(vars["id"]))
-
-	// TODO use id
-
-	vars := mux.Vars(r)
-	wsid := vars["id"]
 
 	//ctx := context.Background()
 
@@ -147,7 +154,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 					"9222/tcp": []docker.PortBinding{
 						docker.PortBinding{
 							HostIP:   "0.0.0.0",
-							HostPort: "9222", // TODO make this dynamic
+							HostPort: fmt.Sprintf("%s", GetPort()),
 						},
 					},
 				},
@@ -172,7 +179,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO return something
+	w.Write([]byte(fmt.Sprintf("%s lumbering along", container.ID)))
 
 }
 func ResetHandler(w http.ResponseWriter, r *http.Request) {
