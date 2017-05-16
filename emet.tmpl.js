@@ -20,12 +20,12 @@
     To *reload* the golem, i.e. reset its state and run it
     again:
 
-    $ curl http://{{ .BaseUrl }}:8000/reset/<webstrate-id>
+    $ curl https://{{ .BaseUrl }}/reset/<webstrate-id>
 
     To *kill* the golem (the golem will respawn the next
     time the page is loaded):
 
-    $ curl http://{{ .BaseUrl }}:8000/kill/<webstrate-id>
+    $ curl https://{{ .BaseUrl }}/kill/<webstrate-id>
                                                                 
 */
 
@@ -44,13 +44,14 @@
         }
       }
     }; 
-    spawnRequest.open('GET', 'https://{{ .BaseUrl }}:8000/spawn/'+webstrate.webstrateId, true);
+    spawnRequest.open('GET', 'https://{{ .BaseUrl }}/spawn/'+webstrate.webstrateId, true);
     spawnRequest.send();
   } else {
     // You're a golem, most likely.
     // Bootstrap yourself. Rise! 
     webstrate.on('loaded', function() {
-      new Function(document.querySelector("golem #emet").textContent)();
+      new Function(document.querySelector(".golem #emet").textContent)();
     });
+
   }
 })();

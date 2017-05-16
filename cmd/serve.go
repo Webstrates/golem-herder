@@ -31,7 +31,7 @@ func EmetHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
-	emet := Emet{BaseUrl: "localhost"}
+	emet := Emet{BaseUrl: "emet-server.cc.au.dk"}
 
 	err = tmpl.Execute(w, emet)
 }
@@ -122,7 +122,6 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO add environment variables (WEBSTRATEID)
 	log.WithFields(log.Fields{"webstrateid": wsid}).Info("Creating container")
 	container, err := client.CreateContainer(
 		docker.CreateContainerOptions{
@@ -131,6 +130,15 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 				Image: "webstrates/golem:latest",
 				ExposedPorts: map[docker.Port]struct{}{
 					"9222/tcp": {},
+				},
+				Env: []string{fmt.Sprintf("WEBSTRATEID=%s", wsid)},
+				Cmd: []string{
+					"--headless",
+					"--ignore-certificate-errors",
+					"--disable-gpu",
+					"--remote-debugging-address=0.0.0.0",
+					"--remote-debugging-port=9222",
+					fmt.Sprintf("http://webstrates/%s", wsid),
 				},
 			},
 			HostConfig: &docker.HostConfig{
@@ -169,9 +177,14 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 }
 func ResetHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO reset handler
+
+	// figure out port
+	// send crdp request to reload page -or- restart container
 }
 func KillHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO kill handler
+	// figure out container
+	// kill, kill, kill
 }
 
 // serveCmd represents the serve command
@@ -190,7 +203,7 @@ var serveCmd = &cobra.Command{
 
 		srv := &http.Server{
 			Handler:   handlers.CORS()(r),
-			Addr:      ":8000",
+			Addr:      ":443",
 			TLSConfig: &tls.Config{},
 			// Good practice: enforce timeouts for servers you create!
 			WriteTimeout: 15 * time.Second,
