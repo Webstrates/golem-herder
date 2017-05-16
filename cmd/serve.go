@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -72,7 +73,7 @@ func ListHandler(w http.ResponseWriter, r *http.Request) {
 
 	golems := []docker.APIContainers{}
 	for _, container := range containers {
-		if container.Image == "golem" {
+		if strings.HasPrefix(container.Image, "webstrates/golem") {
 			golems = append(golems, container)
 		}
 	}
@@ -154,7 +155,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 					"9222/tcp": []docker.PortBinding{
 						docker.PortBinding{
 							HostIP:   "0.0.0.0",
-							HostPort: fmt.Sprintf("%s", GetPort()),
+							HostPort: fmt.Sprintf("%d", GetPort()),
 						},
 					},
 				},
