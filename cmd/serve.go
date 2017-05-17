@@ -62,12 +62,18 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("%s lumbering along", containerID)))
 
 }
-func ResetHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO reset handler
 
-	// figure out port
-	// send crdp request to reload page -or- restart container
+func ResetHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	wsid := vars["id"]
+	containerID, err := golem.Restart(wsid)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Write([]byte(fmt.Sprintf("Reset done - new container %s", containerID)))
 }
+
 func KillHandler(w http.ResponseWriter, r *http.Request) {
 	// kill, kill, kill
 	vars := mux.Vars(r)
