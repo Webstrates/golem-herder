@@ -50,7 +50,7 @@
     // You're a golem, most likely.
     // Bootstrap yourself. Rise! 
     webstrate.on('loaded', function() {
-      new Function(document.querySelector(".golem #emet").textContent)();
+      new Function(document.querySelector(".golem,#emet").textContent)();
     });
 
   }

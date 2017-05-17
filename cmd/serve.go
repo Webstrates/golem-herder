@@ -40,6 +40,35 @@ func GetPort() int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
+func GetName(id string) string {
+	return fmt.Sprintf("golem-%s", id)
+}
+
+func ContainersMatching(client *docker.Client, matches func(container *docker.APIContainers) bool) ([]docker.APIContainers, error) {
+	containers, err := client.ListContainers(docker.ListContainersOptions{All: false})
+	if err != nil {
+		log.WithError(err).Error("Error listing containers")
+		return nil, err
+	}
+
+	matching := []docker.APIContainers{}
+	for _, container := range containers {
+		if matches(&container) {
+			matching = append(matching, container)
+		}
+	}
+	return matching, nil
+}
+
+func ContainerHasName(container *docker.APIContainers, name string) bool {
+	for _, containerName := range container.Names {
+		if containerName == "/"+name {
+			return true
+		}
+	}
+	return false
+}
+
 func EmetHandler(w http.ResponseWriter, r *http.Request) {
 
 	tmpl, err := template.ParseFiles("emet.tmpl.js")
@@ -64,18 +93,11 @@ func ListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	containers, err := client.ListContainers(docker.ListContainersOptions{All: false})
+	golems, err := ContainersMatching(client, func(container *docker.APIContainers) bool {
+		return strings.HasPrefix(container.Image, "webstrates/golem")
+	})
 	if err != nil {
-		log.WithError(err).Error("Error listing containers")
 		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	golems := []docker.APIContainers{}
-	for _, container := range containers {
-		if strings.HasPrefix(container.Image, "webstrates/golem") {
-			golems = append(golems, container)
-		}
 	}
 
 	data, err := json.Marshal(golems)
@@ -133,7 +155,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 	log.WithFields(log.Fields{"webstrateid": wsid}).Info("Creating container")
 	container, err := client.CreateContainer(
 		docker.CreateContainerOptions{
-			Name: fmt.Sprintf("golem-%s", wsid),
+			Name: GetName(wsid),
 			Config: &docker.Config{
 				Image: "webstrates/golem:latest",
 				ExposedPorts: map[docker.Port]struct{}{
@@ -190,9 +212,44 @@ func ResetHandler(w http.ResponseWriter, r *http.Request) {
 	// send crdp request to reload page -or- restart container
 }
 func KillHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO kill handler
-	// figure out container
 	// kill, kill, kill
+	vars := mux.Vars(r)
+	wsid := vars["id"]
+
+	client, err := docker.NewClientFromEnv()
+	if err != nil {
+		log.WithError(err).Error("Error creating docker client")
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	golems, err := ContainersMatching(client, func(c *docker.APIContainers) bool {
+		return strings.HasPrefix(c.Image, "webstrates/golem") && ContainerHasName(c, GetName(wsid))
+	})
+
+	if len(golems) != 1 {
+		http.Error(w, fmt.Sprintf("Unexpected amount of golems - %d", len(golems)), 500)
+		return
+	}
+
+	err = client.KillContainer(docker.KillContainerOptions{
+		ID: golems[0].ID,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	err = client.RemoveContainer(docker.RemoveContainerOptions{
+		ID:            golems[0].ID,
+		RemoveVolumes: true,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Write([]byte(fmt.Sprintf("Golem for %s is no more", wsid)))
 }
 
 // serveCmd represents the serve command
