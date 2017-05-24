@@ -16,26 +16,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type Emet struct {
+type TemplateContext struct {
 	Id      string
 	BaseUrl string
 }
 
-func EmetHandler(w http.ResponseWriter, r *http.Request) {
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 	tmpl, err := template.ParseFiles("emet.tmpl.js")
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 	}
 
-	emet := Emet{BaseUrl: "emet.cc.au.dk"}
+	context := TemplateContext{BaseUrl: "emet.cc.au.dk"}
 
-	err = tmpl.Execute(w, emet)
+	err = tmpl.Execute(w, context)
 }
 
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-
-}
 func ListHandler(w http.ResponseWriter, r *http.Request) {
 
 	golems, err := golem.List()
@@ -94,12 +91,13 @@ var serveCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		r := mux.NewRouter()
 
-		r.HandleFunc("/", HomeHandler)
-		r.HandleFunc("/emet", EmetHandler)
-		r.HandleFunc("/ls", ListHandler)
-		r.HandleFunc("/spawn/{id}", SpawnHandler)
-		r.HandleFunc("/reset/{id}", ResetHandler)
-		r.HandleFunc("/kill/{id}", KillHandler)
+		v1 := r.PathPrefix("/golem/v1").Subrouter()
+
+		v1.HandleFunc("/", HomeHandler)
+		v1.HandleFunc("/ls", ListHandler)
+		v1.HandleFunc("/spawn/{id}", SpawnHandler)
+		v1.HandleFunc("/reset/{id}", ResetHandler)
+		v1.HandleFunc("/kill/{id}", KillHandler)
 
 		srv := &http.Server{
 			Handler:   handlers.CORS()(r),
