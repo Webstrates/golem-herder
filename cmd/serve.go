@@ -91,13 +91,13 @@ var serveCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		r := mux.NewRouter()
 
-		v1 := r.PathPrefix("/golem/v1").Subrouter()
+		gv1 := r.PathPrefix("/golem/v1").Subrouter()
 
-		v1.HandleFunc("/", HomeHandler)
-		v1.HandleFunc("/ls", ListHandler)
-		v1.HandleFunc("/spawn/{id}", SpawnHandler)
-		v1.HandleFunc("/reset/{id}", ResetHandler)
-		v1.HandleFunc("/kill/{id}", KillHandler)
+		gv1.HandleFunc("/", HomeHandler)
+		gv1.HandleFunc("/ls", ListHandler)
+		gv1.HandleFunc("/spawn/{id}", SpawnHandler)
+		gv1.HandleFunc("/reset/{id}", ResetHandler)
+		gv1.HandleFunc("/kill/{id}", KillHandler)
 
 		srv := &http.Server{
 			Handler:   handlers.CORS()(r),
