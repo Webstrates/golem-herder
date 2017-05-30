@@ -1,0 +1,13 @@
+services:
+  - docker
+
+script:
+  - docker run -v "$TRAVIS_BUILD_DIR:/go/src/github.com/Webstrates/golem-herder" -w "/go/src/github.com/Webstrates/golem-herder" golang:1.8-alpine go build -o chief-minion main.go
+  - sudo chmod +x chief-minion
+
+after_success:
+  - if [ "$TRAVIS_BRANCH" == "master" ]; then
+    docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
+    docker build -t webstrates/golem-herder:latest .;
+    docker push webstrates/golem-herder:latest;
+    fi
