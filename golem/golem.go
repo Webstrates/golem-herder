@@ -111,7 +111,7 @@ func Spawn(webstrateID string) (string, error) {
 				},
 			},
 			HostConfig: &docker.HostConfig{
-				Links: []string{"webstrates"},
+				Links: []string{"webstrates", "chief-minion"},
 				PortBindings: map[docker.Port][]docker.PortBinding{
 					"9222/tcp": []docker.PortBinding{
 						docker.PortBinding{
