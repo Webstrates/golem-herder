@@ -2,8 +2,8 @@ services:
   - docker
 
 script:
-  - docker run -v "$TRAVIS_BUILD_DIR:/go/src/github.com/Webstrates/golem-herder" -w "/go/src/github.com/Webstrates/golem-herder" golang:1.8-alpine go build -o chief-minion main.go
-  - sudo chmod +x chief-minion
+  - docker run -v "$TRAVIS_BUILD_DIR:/go/src/github.com/Webstrates/golem-herder" -w "/go/src/github.com/Webstrates/golem-herder" golang:1.8-alpine go build -o golem-herder main.go
+  - sudo chmod +x golem-herder
 
 after_success:
   - if [ "$TRAVIS_BRANCH" == "master" ]; then
