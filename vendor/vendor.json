@@ -31,11 +31,10 @@
 			"revisionTime": "2017-05-14T12:17:28Z"
 		},
 		{
-			"checksumSHA1": "QvibMZwbRw2ltwyNCza/0fXUbF0=",
-			"origin": "github.com/docker/docker/vendor/github.com/Sirupsen/logrus",
+			"checksumSHA1": "DYv6Q1+VfnUVxMwvk5IshAClLvw=",
 			"path": "github.com/Sirupsen/logrus",
-			"revision": "5072b22c5fea93f00917c8c5d6a29d782db2bb73",
-			"revisionTime": "2017-05-14T12:17:28Z"
+			"revision": "5e5dc898656f695e2a086b8e12559febbfc01562",
+			"revisionTime": "2017-05-15T10:45:16Z"
 		},
 		{
 			"checksumSHA1": "qjY3SPlNvqT179DPiRaIsRhYZQI=",
@@ -417,12 +416,6 @@
 			"path": "github.com/pkg/sftp",
 			"revision": "8197a2e580736b78d704be0fc47b2324c0591a32",
 			"revisionTime": "2016-09-08T10:00:35Z"
-		},
-		{
-			"checksumSHA1": "rT89wcj/XXJBzxTDLRY3idci/rg=",
-			"path": "github.com/sirupsen/logrus",
-			"revision": "08a8a7c27e3d058a8989316a850daad1c10bf4ab",
-			"revisionTime": "2016-08-13T15:40:05Z"
 		},
 		{
 			"checksumSHA1": "59wTbS4fE2282Q88NrBYImbFGbo=",
