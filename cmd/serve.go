@@ -2,87 +2,19 @@ package cmd
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"time"
 
-	"github.com/Webstrates/golem-herder/golem"
-
+	"github.com/Webstrates/golem-herder/herder"
+	"github.com/Webstrates/golem-herder/minion"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 )
 
-type TemplateContext struct {
-	Id      string
-	BaseUrl string
-}
-
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-
-	tmpl, err := template.ParseFiles("emet.tmpl.js")
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-	}
-
-	context := TemplateContext{BaseUrl: "emet.cc.au.dk"}
-
-	err = tmpl.Execute(w, context)
-}
-
-func ListHandler(w http.ResponseWriter, r *http.Request) {
-
-	golems, err := golem.List()
-
-	data, err := json.Marshal(golems)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-	}
-
-	w.Write(data)
-}
-func SpawnHandler(w http.ResponseWriter, r *http.Request) {
-
-	// we need id for webstrate
-	vars := mux.Vars(r)
-	wsid := vars["id"]
-
-	containerID, err := golem.Spawn(wsid)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	w.Write([]byte(fmt.Sprintf("%s lumbering along", containerID)))
-
-}
-
-func ResetHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	wsid := vars["id"]
-	containerID, err := golem.Restart(wsid)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	w.Write([]byte(fmt.Sprintf("Reset done - new container %s", containerID)))
-}
-
-func KillHandler(w http.ResponseWriter, r *http.Request) {
-	// kill, kill, kill
-	vars := mux.Vars(r)
-	wsid := vars["id"]
-
-	err := golem.Kill(wsid)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	w.Write([]byte(fmt.Sprintf("Golem for %s is no more", wsid)))
-}
+var port int
 
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
@@ -93,15 +25,25 @@ var serveCmd = &cobra.Command{
 
 		gv1 := r.PathPrefix("/golem/v1").Subrouter()
 
-		gv1.HandleFunc("/", HomeHandler)
-		gv1.HandleFunc("/ls", ListHandler)
-		gv1.HandleFunc("/spawn/{id}", SpawnHandler)
-		gv1.HandleFunc("/reset/{id}", ResetHandler)
-		gv1.HandleFunc("/kill/{id}", KillHandler)
+		gv1.HandleFunc("/", herder.HomeHandler)
+		gv1.HandleFunc("/ls", herder.ListHandler)
+		gv1.HandleFunc("/spawn/{webstrate}", herder.SpawnHandler)
+		gv1.HandleFunc("/reset/{webstrate}", herder.ResetHandler)
+		gv1.HandleFunc("/kill/{webstrate}", herder.KillHandler)
+
+		// Connect a golem. Golem will get status info and connect information on this socket.
+		gv1.HandleFunc("/connect/{webstrate}", minion.GolemConnectHandler)
+
+		// Connect a golem and a specific minion
+		gv1.HandleFunc("/connect-to/{webstrate}/{minion}", minion.GolemMinionConnectHandler)
+
+		mv1 := r.PathPrefix("/minion/v1").Subrouter()
+		// Connect a minion
+		mv1.HandleFunc("/connect/{webstrate}", minion.MinionConnectHandler)
 
 		srv := &http.Server{
 			Handler:   handlers.CORS()(r),
-			Addr:      ":80",
+			Addr:      fmt.Sprintf(":%v", port),
 			TLSConfig: &tls.Config{},
 			// Good practice: enforce timeouts for servers you create!
 			WriteTimeout: 15 * time.Second,
@@ -125,4 +67,5 @@ func init() {
 	// is called directly, e.g.:
 	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
+	serveCmd.Flags().IntVarP(&port, "port", "p", 81, "Which port to listen on")
 }
