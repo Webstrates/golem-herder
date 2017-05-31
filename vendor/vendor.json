@@ -288,6 +288,12 @@
 			"revisionTime": "2016-07-30T23:45:59Z"
 		},
 		{
+			"checksumSHA1": "klfNfdEPsrWYLps2qBkLgfJsNYI=",
+			"path": "github.com/gorilla/websocket",
+			"revision": "a69d25be2fe2923a97c2af6849b2f52426f68fc0",
+			"revisionTime": "2016-08-02T13:32:03Z"
+		},
+		{
 			"checksumSHA1": "b8F628srIitj5p7Y130xc9k0QWs=",
 			"path": "github.com/hashicorp/go-cleanhttp",
 			"revision": "3573b8b52aa7b37b9358d966a898feb387f62437",
@@ -416,6 +422,12 @@
 			"path": "github.com/pkg/sftp",
 			"revision": "8197a2e580736b78d704be0fc47b2324c0591a32",
 			"revisionTime": "2016-09-08T10:00:35Z"
+		},
+		{
+			"checksumSHA1": "zmC8/3V4ls53DJlNTKDZwPSC/dA=",
+			"path": "github.com/satori/go.uuid",
+			"revision": "5bf94b69c6b68ee1b541973bb8e1144db23a194b",
+			"revisionTime": "2017-03-21T23:07:31Z"
 		},
 		{
 			"checksumSHA1": "59wTbS4fE2282Q88NrBYImbFGbo=",
