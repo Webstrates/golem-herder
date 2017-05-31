@@ -14,8 +14,8 @@ import (
 // List all connected minions
 var (
 	port    int
-	golems  map[string]*Golem
-	minions map[string]map[string]*Minion
+	golems  = map[string]*Golem{}
+	minions = map[string]map[string]*Minion{}
 
 	mutex = &sync.Mutex{}
 	// upgrader upgrades HTTP 1.1 connection to WebSocket
@@ -115,7 +115,7 @@ func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 				if err := ws.WriteMessage(msg.Type, msg.Content); err != nil {
 					log.WithError(err).Warn("Error writing to minion websocket")
 				}
-			case <-minion.done:
+			case <-golem.done:
 				if err := ws.Close(); err != nil {
 					log.WithError(err).Warn("Error closing minion websocket")
 				}
@@ -146,6 +146,7 @@ func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				log.Debug("Letting golem know that minion disconnected")
 				golem.to <- Message{Type: websocket.TextMessage, Content: disconnected}
+				minion.from <- Message{Type: websocket.TextMessage, Content: disconnected}
 			}
 
 			// Cleanup
@@ -158,6 +159,7 @@ func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		minion.from <- Message{Type: messageType, Content: messageContent}
 	}
+	log.WithField("minion", minion).Info("minion done")
 }
 
 func GolemConnectHandler(w http.ResponseWriter, r *http.Request) {
@@ -273,27 +275,10 @@ func GolemMinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 					log.WithError(err).Warn("Could not forward minion message to golem")
 				}
 			case <-minion.done:
-				// Golem disconnected
-				event := NewGolemDisconnected()
-				disconnected, err := json.Marshal(event)
-				if err != nil {
-					log.WithError(err).Warn("Could not marshal golem-disconnect message")
-				}
-				err = ws.WriteMessage(websocket.TextMessage, disconnected)
-				if err != nil {
-					log.WithError(err).Warn("Could not alert golem that minion left")
-				}
-				// Let golem know that minion disconnected
-				event = NewMinionDisconnected(minion.ID)
-				disconnected, err = json.Marshal(event)
-				if err != nil {
-					log.WithError(err).Warn("Error marshaling disconnected event")
-					return
-				}
-				ws.WriteMessage(websocket.TextMessage, disconnected)
-
+				// Minion disconnected
+				log.Info("golem saw minion was done, closing socket")
 				if err := ws.Close(); err != nil {
-					log.WithError(err).Warn("Error closing websocket")
+					log.WithError(err).Warn("minion disconnected, but could not close socket")
 				}
 				return
 			}
@@ -304,9 +289,16 @@ func GolemMinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 	for {
 		messageType, messageContent, err := conn.ReadMessage()
 		if err != nil {
-			log.WithError(err).WithField("minion", minion).Warn("Error waiting for/reading message from golem")
-			minion.done <- true
-			return
+			log.WithError(err).WithField("minion", minion).Warn("Error waiting for/reading message from minion")
+
+			event := NewGolemDisconnected()
+			disconnected, err := json.Marshal(event)
+			if err != nil {
+				log.WithError(err).Warn("error serialising golem-disconnect event")
+				break
+			}
+			minion.to <- Message{Type: websocket.TextMessage, Content: disconnected}
+			break
 		}
 		minion.to <- Message{Type: messageType, Content: messageContent}
 	}
