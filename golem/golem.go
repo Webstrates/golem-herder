@@ -60,7 +60,7 @@ func Spawn(webstrateID string) (string, error) {
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
-		log.WithError(err).Error("Could create docker client")
+		log.WithError(err).Error("Could not create docker client")
 		return "", err
 	}
 

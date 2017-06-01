@@ -2,10 +2,14 @@ package minion
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/Webstrates/golem-herder/container"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	uuid "github.com/satori/go.uuid"
@@ -71,6 +75,91 @@ func NewGolemDisconnected() ConnectEvent {
 func NewGolemConnected() ConnectEvent {
 	return ConnectEvent{
 		Event: "golem-connected"}
+}
+
+// Spawn will spawn a new minion given an;
+// * env - environment (Webstrates/<env> image to use)
+// * setup - a setup configuration, e.g. for node this will be put into package.json
+// * code - some code to run, e.g. for node this will be put into an index.js file
+func Spawn(env, setup, code string) ([]byte, error) {
+	// create a local environment for the container (will get mounted as a volume)
+	dir, err := ioutil.TempDir("/tmp", "minion-")
+	if err != nil {
+		log.WithError(err).Error("Error creating temp dir for minion")
+		return nil, err
+	}
+
+	log.WithField("dir", dir).Info("Created tmp dir")
+
+	switch env {
+	case "node":
+		// write package json
+		err := ioutil.WriteFile(filepath.Join(dir, "package.json"), []byte(setup), 0644)
+		if err != nil {
+			log.WithError(err).Warn("Could not write setup to tmp dir")
+			return nil, err
+		}
+		// write index.js
+		err = ioutil.WriteFile(filepath.Join(dir, "index.js"), []byte(code), 0644)
+		if err != nil {
+			log.WithError(err).Warn("Could not write code to tmp dir")
+			return nil, err
+		}
+		// write script (main.sh) to do;
+		// * npm install
+		// * node index.js
+		bootstrap := "npm install &>/dev/null && node index.js"
+		err = ioutil.WriteFile(filepath.Join(dir, "main.sh"), []byte(bootstrap), 0755)
+		if err != nil {
+			log.WithError(err).Warn("Could not write boostrap script to tmp dir")
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("Unknown env: %v", env)
+	}
+
+	// create container for minion and run
+	// return output (stream) for container
+	// remove container image
+	mounts := map[string]string{
+		dir: "/minion",
+	}
+	output, err := container.Run(filepath.Base(dir), fmt.Sprintf("webstrates/%s", env), "latest", mounts)
+	if err != nil {
+		return output, err
+	}
+
+	return output, nil
+}
+
+func SpawnHandler(w http.ResponseWriter, r *http.Request) {
+
+	env := r.FormValue("env")
+	setup := r.FormValue("setup")
+	code := r.FormValue("code")
+
+	if env == "" {
+		http.Error(w, "Missing env POST variable", 400)
+		return
+	}
+
+	if setup == "" {
+		http.Error(w, "Missing setup POST variable", 400)
+		return
+	}
+
+	if code == "" {
+		http.Error(w, "Missing code POST variable", 400)
+		return
+	}
+
+	result, err := Spawn(env, setup, code)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Write(result)
 }
 
 func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
