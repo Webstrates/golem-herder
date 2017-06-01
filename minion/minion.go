@@ -78,6 +78,8 @@ func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	webstrate := vars["webstrate"]
 
+	log.WithField("webstrate", webstrate).Info("Minion connecting")
+
 	mutex.Lock()
 
 	if minions[webstrate] == nil {
@@ -100,6 +102,12 @@ func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 
 	mutex.Unlock()
 
+	defer func() {
+		mutex.Lock()
+		delete(minions[webstrate], id)
+		mutex.Unlock()
+	}()
+
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -107,6 +115,14 @@ func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 		minion.done <- true
 		return
 	}
+
+	if golem == nil {
+		log.Warn("No golem connected yet, try later")
+		// TODO send message to minion
+		return
+	}
+
+	log.WithField("ID", minion.ID).Info("minion assigned id and ready")
 
 	go func(ws *websocket.Conn, m *Minion) {
 		for {
@@ -149,11 +165,6 @@ func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 				minion.from <- Message{Type: websocket.TextMessage, Content: disconnected}
 			}
 
-			// Cleanup
-			mutex.Lock()
-			delete(minions[webstrate], id)
-			mutex.Unlock()
-
 			minion.done <- true
 			break
 		}
@@ -166,6 +177,8 @@ func GolemConnectHandler(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	webstrate := vars["webstrate"]
+
+	log.WithField("webstrate", webstrate).Info("golem connecting")
 
 	mutex.Lock()
 
@@ -183,6 +196,12 @@ func GolemConnectHandler(w http.ResponseWriter, r *http.Request) {
 	golems[webstrate] = golem
 
 	mutex.Unlock()
+
+	defer func() {
+		mutex.Lock()
+		delete(golems, webstrate)
+		mutex.Unlock()
+	}()
 
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -224,6 +243,9 @@ func GolemConnectHandler(w http.ResponseWriter, r *http.Request) {
 		// TODO do something with golem message
 		log.WithField("type", messageType).WithField("content", messageContent).Info("Read message from golem")
 	}
+
+	log.WithField("webstrate", webstrate).Info("golem done")
+
 }
 
 func GolemMinionConnectHandler(w http.ResponseWriter, r *http.Request) {
@@ -231,6 +253,8 @@ func GolemMinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	webstrate := vars["webstrate"]
 	minionID := vars["minion"]
+
+	log.WithField("webstrate", webstrate).WithField("minionID", minionID).Info("golem attempting to establish connection")
 
 	mutex.Lock()
 
@@ -256,6 +280,8 @@ func GolemMinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 		log.WithError(err).Panic("Error upgrading connection")
 		return
 	}
+
+	log.WithField("webstrate", webstrate).WithField("minionID", minionID).Info("golem/minion connection ready")
 
 	// Send hello
 	event := NewGolemConnected()
