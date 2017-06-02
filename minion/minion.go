@@ -77,11 +77,10 @@ func NewGolemConnected() ConnectEvent {
 		Event: "golem-connected"}
 }
 
-// Spawn will spawn a new minion given an;
+// Spawn will spawn a new minion given
 // * env - environment (Webstrates/<env> image to use)
-// * setup - a setup configuration, e.g. for node this will be put into package.json
-// * code - some code to run, e.g. for node this will be put into an index.js file
-func Spawn(env, setup, code string) ([]byte, error) {
+// * files - a map of filename -> content of files to write
+func Spawn(env string, files map[string][]byte) ([]byte, error) {
 	// create a local environment for the container (will get mounted as a volume)
 	dir, err := ioutil.TempDir("/tmp", "minion-")
 	if err != nil {
@@ -91,31 +90,13 @@ func Spawn(env, setup, code string) ([]byte, error) {
 
 	log.WithField("dir", dir).Info("Created tmp dir")
 
-	switch env {
-	case "node":
-		// write package json
-		err := ioutil.WriteFile(filepath.Join(dir, "package.json"), []byte(setup), 0644)
+	// write stuff to tmp dir
+	for name, content := range files {
+		err := ioutil.WriteFile(filepath.Join(dir, name), content, 0644)
 		if err != nil {
-			log.WithError(err).Warn("Could not write setup to tmp dir")
+			log.WithError(err).WithField("file", name).Warn("Could not write file to tmp dir")
 			return nil, err
 		}
-		// write index.js
-		err = ioutil.WriteFile(filepath.Join(dir, "index.js"), []byte(code), 0644)
-		if err != nil {
-			log.WithError(err).Warn("Could not write code to tmp dir")
-			return nil, err
-		}
-		// write script (main.sh) to do;
-		// * npm install
-		// * node index.js
-		bootstrap := "npm install &>/dev/null && node index.js"
-		err = ioutil.WriteFile(filepath.Join(dir, "main.sh"), []byte(bootstrap), 0755)
-		if err != nil {
-			log.WithError(err).Warn("Could not write boostrap script to tmp dir")
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("Unknown env: %v", env)
 	}
 
 	// create container for minion and run
@@ -135,25 +116,20 @@ func Spawn(env, setup, code string) ([]byte, error) {
 func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	env := r.FormValue("env")
-	setup := r.FormValue("setup")
-	code := r.FormValue("code")
+
+	files := map[string][]byte{}
+	for key, values := range r.Form {
+		if key != "env" && len(values) > 0 {
+			files[key] = []byte(values[0])
+		}
+	}
 
 	if env == "" {
 		http.Error(w, "Missing env POST variable", 400)
 		return
 	}
 
-	if setup == "" {
-		http.Error(w, "Missing setup POST variable", 400)
-		return
-	}
-
-	if code == "" {
-		http.Error(w, "Missing code POST variable", 400)
-		return
-	}
-
-	result, err := Spawn(env, setup, code)
+	result, err := Spawn(env, files)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
