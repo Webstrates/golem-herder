@@ -92,6 +92,7 @@ func Spawn(env string, files map[string][]byte) ([]byte, error) {
 
 	// write stuff to tmp dir
 	for name, content := range files {
+		log.WithField("file", name).Info("Writing file to tmp dir")
 		err := ioutil.WriteFile(filepath.Join(dir, name), content, 0644)
 		if err != nil {
 			log.WithError(err).WithField("file", name).Warn("Could not write file to tmp dir")
