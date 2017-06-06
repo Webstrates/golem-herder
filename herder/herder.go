@@ -10,11 +10,13 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// TemplateContext is the context which gets used when constructing the emet js init file
 type TemplateContext struct {
-	Id      string
-	BaseUrl string
+	ID      string
+	BaseURL string
 }
 
+// HomeHandler will serve the js emet init file
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 	tmpl, err := template.ParseFiles("emet.tmpl.js")
@@ -22,11 +24,12 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
-	context := TemplateContext{BaseUrl: "emet.cc.au.dk"}
+	context := TemplateContext{BaseURL: "emet.cc.au.dk"}
 
 	err = tmpl.Execute(w, context)
 }
 
+// ListHandler shows the running golems
 func ListHandler(w http.ResponseWriter, r *http.Request) {
 
 	golems, err := golem.List()
@@ -38,6 +41,8 @@ func ListHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Write(data)
 }
+
+// SpawnHandler will spawn a new golem for the webstrate given by the mux.Vars
 func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	// we need id for webstrate
@@ -54,6 +59,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// ResetHandler will reset/reload the golem on the given webstrate
 func ResetHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	wsid := vars["webstrate"]
@@ -65,6 +71,7 @@ func ResetHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("Reset done - new container %s", containerID)))
 }
 
+// KillHandler will kill the golem
 func KillHandler(w http.ResponseWriter, r *http.Request) {
 	// kill, kill, kill
 	vars := mux.Vars(r)

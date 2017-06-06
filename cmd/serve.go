@@ -39,7 +39,7 @@ var serveCmd = &cobra.Command{
 
 		mv1 := r.PathPrefix("/minion/v1").Subrouter()
 		// Connect a minion
-		mv1.HandleFunc("/connect/{webstrate}", minion.MinionConnectHandler)
+		mv1.HandleFunc("/connect/{webstrate}", minion.ConnectHandler)
 		mv1.HandleFunc("/spawn", minion.SpawnHandler).Methods("POST")
 
 		srv := &http.Server{

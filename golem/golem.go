@@ -56,6 +56,7 @@ func containerHasName(container *docker.APIContainers, name string) bool {
 	return false
 }
 
+// Spawn will create a new container and inject a golem into it
 func Spawn(webstrateID string) (string, error) {
 
 	client, err := docker.NewClientFromEnv()
@@ -141,6 +142,7 @@ func Spawn(webstrateID string) (string, error) {
 	return container.ID, nil
 }
 
+// Kill will kill the container running the given golem
 func Kill(webstrateID string) error {
 
 	client, err := docker.NewClientFromEnv()
@@ -174,6 +176,7 @@ func Kill(webstrateID string) error {
 	return nil
 }
 
+// Restart will kill, recreate and start a given golem
 func Restart(webstrateID string) (string, error) {
 	err := Kill(webstrateID)
 	if err != nil {
@@ -182,6 +185,7 @@ func Restart(webstrateID string) (string, error) {
 	return Spawn(webstrateID)
 }
 
+// List the running golems
 func List() ([]docker.APIContainers, error) {
 
 	client, err := docker.NewClientFromEnv()

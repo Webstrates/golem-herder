@@ -30,11 +30,14 @@ var (
 	}
 )
 
+// Golem represents a connected golem
 type Golem struct {
 	// in is chan to send messages to the golem
 	to   chan Message
 	done chan bool
 }
+
+// Minion represents a connected minion
 type Minion struct {
 	ID string
 	// in is a chan w messages to the minion
@@ -43,17 +46,20 @@ type Minion struct {
 	done chan bool
 }
 
+// Message is a websocket message
 type Message struct {
 	Type    int
 	Content []byte
 }
 
+// ConnectEvent is an event for connects
 type ConnectEvent struct {
 	Event string
 	ID    string `json:",omitempty"`
 	Type  string `json:",omitempty"`
 }
 
+// NewMinionConnected creates and returns a ConnectEvent for a connected minion
 func NewMinionConnected(id string, t string) ConnectEvent {
 	return ConnectEvent{
 		Event: "minion-connected",
@@ -61,17 +67,20 @@ func NewMinionConnected(id string, t string) ConnectEvent {
 		Type:  t}
 }
 
+// NewMinionDisconnected creates and returns a ConnectEvent for a disconnected minion
 func NewMinionDisconnected(id string) ConnectEvent {
 	return ConnectEvent{
 		Event: "minion-disconnected",
 		ID:    id}
 }
 
+// NewGolemDisconnected creates and returns a ConnectEvent for disconnected golem
 func NewGolemDisconnected() ConnectEvent {
 	return ConnectEvent{
 		Event: "golem-disconnected"}
 }
 
+// NewGolemConnected creates and returns a ConnectEvent for connected golem
 func NewGolemConnected() ConnectEvent {
 	return ConnectEvent{
 		Event: "golem-connected"}
@@ -114,6 +123,7 @@ func Spawn(env string, files map[string][]byte) ([]byte, error) {
 	return output, nil
 }
 
+// SpawnHandler is the http handler for minion spawns
 func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	env := r.FormValue("env")
@@ -139,7 +149,8 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(result)
 }
 
-func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
+// ConnectHandler is the http handler for minion connects
+func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	webstrate := vars["webstrate"]
@@ -239,6 +250,7 @@ func MinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 	log.WithField("minion", minion).Info("minion done")
 }
 
+// GolemConnectHandler is the http handler for golem connects
 func GolemConnectHandler(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
@@ -314,6 +326,7 @@ func GolemConnectHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// GolemMinionConnectHandler handles the golem connecting to an already connected minion
 func GolemMinionConnectHandler(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
