@@ -168,12 +168,13 @@ func Spawn(env, output string, files map[string][]byte) ([]byte, string, error) 
 		return nil, "", err
 	}
 
+	o, err := defaultOutput(stdout, stderr)
+	if err != nil {
+		log.WithError(err).Warn("Error getting default output")
+		return nil, "", nil
+	}
+
 	if output == "" || output == "stdout" {
-		o, err := defaultOutput(stdout, stderr)
-		if err != nil {
-			log.WithError(err).Warn("Error getting default output")
-			return []byte(string(stderr) + "/" + string(stdout)), "text/plain", nil
-		}
 		return o, "application/json", nil
 	}
 
@@ -181,7 +182,7 @@ func Spawn(env, output string, files map[string][]byte) ([]byte, string, error) 
 	fileContent, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.WithError(err).WithField("file", output).Warn("Error reading file for output")
-		return nil, "", err
+		return o, "application/json", nil
 	}
 	return fileContent, mime.TypeByExtension(filepath.Ext(path)), nil
 }
