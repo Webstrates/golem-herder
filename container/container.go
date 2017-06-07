@@ -9,12 +9,12 @@ import (
 )
 
 // Run will pull, create and start the container returning its stdout
-func Run(name, repository, tag string, mounts map[string]string) ([]byte, error) {
+func Run(name, repository, tag string, mounts map[string]string) ([]byte, []byte, error) {
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
 		log.WithError(err).Error("Could not create docker client")
-		return nil, err
+		return nil, nil, err
 	}
 
 	log.WithFields(log.Fields{"image": fmt.Sprintf("%s:%s", repository, tag)}).Info("Pulling image")
@@ -24,7 +24,7 @@ func Run(name, repository, tag string, mounts map[string]string) ([]byte, error)
 		Tag:        tag,
 	}, docker.AuthConfiguration{})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	log.WithFields(log.Fields{"image": fmt.Sprintf("%s:%s", repository, tag)}).Info("Pull done")
@@ -45,6 +45,7 @@ func Run(name, repository, tag string, mounts map[string]string) ([]byte, error)
 				Image:        fmt.Sprintf("%s:%s", repository, tag),
 				Mounts:       ms,
 				AttachStdout: true,
+				AttachStderr: true,
 			},
 			HostConfig: &docker.HostConfig{
 				Binds: binds,
@@ -53,7 +54,7 @@ func Run(name, repository, tag string, mounts map[string]string) ([]byte, error)
 	)
 	if err != nil {
 		log.WithError(err).Error("Error creating container")
-		return nil, err
+		return nil, nil, err
 	}
 	log.WithField("containerid", container.ID).Info("Created container")
 
@@ -72,7 +73,7 @@ func Run(name, repository, tag string, mounts map[string]string) ([]byte, error)
 
 	if err != nil {
 		log.WithError(err).Error("Error starting container")
-		return nil, err
+		return nil, nil, err
 	}
 
 	log.WithField("containerid", container.ID).Info("Container started")
@@ -81,18 +82,20 @@ func Run(name, repository, tag string, mounts map[string]string) ([]byte, error)
 	_, err = client.WaitContainer(container.ID)
 	if err != nil {
 		log.WithError(err).Warn("Error waiting for container to exit")
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Use a buffer to capture output
-	var out bytes.Buffer
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
 	client.Logs(docker.LogsOptions{
 		Stdout:       true,
 		Container:    container.ID,
-		OutputStream: &out,
+		OutputStream: &stdout,
+		ErrorStream:  &stderr,
 	})
 
-	log.WithField("output", out.String()).Info("Run done")
+	log.WithField("stdout", stdout.String()).WithField("stderr", stderr.String()).Info("Run done")
 
-	return out.Bytes(), nil
+	return stdout.Bytes(), stderr.Bytes(), nil
 }

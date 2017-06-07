@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"mime"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
@@ -59,6 +62,12 @@ type ConnectEvent struct {
 	Type  string `json:",omitempty"`
 }
 
+// Output is the default information returned from a minion lambda execution
+type Output struct {
+	StdOut string
+	StdErr string `json:",omitempty"`
+}
+
 // NewMinionConnected creates and returns a ConnectEvent for a connected minion
 func NewMinionConnected(id string, t string) ConnectEvent {
 	return ConnectEvent{
@@ -89,25 +98,62 @@ func NewGolemConnected() ConnectEvent {
 // Spawn will spawn a new minion given
 // * env - environment (Webstrates/<env> image to use)
 // * files - a map of filename -> content of files to write
-func Spawn(env string, files map[string][]byte) ([]byte, error) {
+func Spawn(env, output string, files map[string][]byte) ([]byte, string, error) {
 	// create a local environment for the container (will get mounted as a volume)
 	dir, err := ioutil.TempDir("/tmp", "minion-")
 	if err != nil {
 		log.WithError(err).Error("Error creating temp dir for minion")
-		return nil, err
+		return nil, "", err
 	}
 
 	log.WithField("dir", dir).Info("Created tmp dir")
 
+	var wg sync.WaitGroup
+
 	// write stuff to tmp dir
 	for name, content := range files {
-		log.WithField("file", name).Info("Writing file to tmp dir")
-		err := ioutil.WriteFile(filepath.Join(dir, name), content, 0644)
-		if err != nil {
-			log.WithError(err).WithField("file", name).Warn("Could not write file to tmp dir")
-			return nil, err
+		// check if content is something we need to fetch
+		if url, err := url.Parse(string(content)); err == nil && strings.HasPrefix(string(content), "http") {
+			wg.Add(1)
+			go func(name string) {
+				defer wg.Done()
+				request, err := http.NewRequest("GET", url.String(), nil)
+				if err != nil {
+					log.WithError(err).WithField("url", url.String()).Warn("Could not create request")
+				}
+				// we need to add basic auth for webstrates assets
+				if url.Hostname() == "webstrates.cs.au.dk" || url.Hostname() == "hiraku.cs.au.dk" {
+					request.SetBasicAuth("web", "strate")
+				}
+				response, err := http.DefaultClient.Do(request)
+				if err != nil {
+					log.WithError(err).WithField("file", name).WithField("url", url.String()).Warn("Could not GET content to store in container")
+				}
+				defer response.Body.Close()
+				fetchedContent, err := ioutil.ReadAll(response.Body)
+				if err != nil {
+					log.WithError(err).WithField("url", url.String()).Warn("Error getting body")
+				}
+				// write content of url to file
+				log.WithField("file", name).Info("Writing fetched content to tmp dir")
+				err = ioutil.WriteFile(filepath.Join(dir, name), fetchedContent, 0644)
+				if err != nil {
+					log.WithError(err).WithField("file", name).Warn("Could not write file to tmp dir")
+				}
+			}(name)
+		} else {
+			// default case, something not an url
+			log.WithField("file", name).Info("Writing provided content to tmp dir")
+			err := ioutil.WriteFile(filepath.Join(dir, name), content, 0644)
+			if err != nil {
+				log.WithError(err).WithField("file", name).Warn("Could not write file to tmp dir")
+				return nil, "", err
+			}
 		}
 	}
+
+	// Wait for all async tasks to complete
+	wg.Wait()
 
 	// create container for minion and run
 	// return output (stream) for container
@@ -115,18 +161,41 @@ func Spawn(env string, files map[string][]byte) ([]byte, error) {
 	mounts := map[string]string{
 		dir: "/minion",
 	}
-	output, err := container.Run(filepath.Base(dir), fmt.Sprintf("webstrates/%s", env), "latest", mounts)
+
+	// return stdout iff output == "stdout" else read file (name given by output)
+	stdout, stderr, err := container.Run(filepath.Base(dir), fmt.Sprintf("webstrates/%s", env), "latest", mounts)
 	if err != nil {
-		return output, err
+		return nil, "", err
 	}
 
-	return output, nil
+	if output == "" || output == "stdout" {
+		o, err := defaultOutput(stdout, stderr)
+		if err != nil {
+			log.WithError(err).Warn("Error getting default output")
+			return []byte(string(stderr) + "/" + string(stdout)), "text/plain", nil
+		}
+		return o, "application/json", nil
+	}
+
+	path := filepath.Join(dir, output)
+	fileContent, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.WithError(err).WithField("file", output).Warn("Error reading file for output")
+		return nil, "", err
+	}
+	return fileContent, mime.TypeByExtension(filepath.Ext(path)), nil
+}
+
+func defaultOutput(stdout, stderr []byte) ([]byte, error) {
+	o := Output{StdOut: string(stdout), StdErr: string(stderr)}
+	return json.Marshal(o)
 }
 
 // SpawnHandler is the http handler for minion spawns
 func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	env := r.FormValue("env")
+	output := r.FormValue("output")
 
 	files := map[string][]byte{}
 	for key, values := range r.Form {
@@ -140,12 +209,13 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := Spawn(env, files)
+	result, mimeType, err := Spawn(env, output, files)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
+	w.Header().Set("Content-Type", mimeType)
 	w.Write(result)
 }
 
