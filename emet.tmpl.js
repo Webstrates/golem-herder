@@ -20,12 +20,12 @@
     To *reload* the golem, i.e. reset its state and run it
     again:
 
-    $ curl https://{{ .BaseUrl }}/golem/v1/reset/<webstrate-id>
+    $ curl https://{{ .BaseURL }}/golem/v1/reset/<webstrate-id>
 
     To *kill* the golem (the golem will respawn the next
     time the page is loaded):
 
-    $ curl https://{{ .BaseUrl }}/golem/v1/kill/<webstrate-id>
+    $ curl https://{{ .BaseURL }}/golem/v1/kill/<webstrate-id>
                                                                 
 */
 
@@ -44,7 +44,7 @@
         }
       }
     }; 
-    spawnRequest.open('GET', 'https://{{ .BaseUrl }}/golem/v1/spawn/'+webstrate.webstrateId, true);
+    spawnRequest.open('GET', 'https://{{ .BaseURL }}/golem/v1/spawn/'+webstrate.webstrateId, true);
     spawnRequest.send();
   } else {
     // You're a golem, most likely.
