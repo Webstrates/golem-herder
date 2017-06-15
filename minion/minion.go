@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/Webstrates/golem-herder/container"
@@ -66,6 +67,13 @@ type ConnectEvent struct {
 type Output struct {
 	StdOut string
 	StdErr string `json:",omitempty"`
+}
+
+// NewGolemNotFound creates and returns a ConnectEvent for a connected minion
+func NewGolemNotFound(id string) ConnectEvent {
+	return ConnectEvent{
+		Event: "golem-not-found",
+		ID:    id}
 }
 
 // NewMinionConnected creates and returns a ConnectEvent for a connected minion
@@ -265,9 +273,27 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if golem == nil {
-		log.Warn("No golem connected yet, try later")
-		// TODO send message to minion
-		return
+		log.Warn("No golem connected yet, will look for golems for a little while")
+		for i := 0; i < 100; i++ {
+			mutex.Lock()
+			golem = golems[webstrate]
+			if golem != nil {
+				break
+			}
+			mutex.Unlock()
+			<-time.After(200 * time.Millisecond)
+		}
+		if golem == nil {
+			nf := NewGolemNotFound(webstrate)
+			if notFound, err := json.Marshal(nf); err != nil {
+				conn.WriteMessage(websocket.TextMessage, notFound)
+			}
+			http.Error(w, "No golem found", 404)
+			if err := conn.Close(); err != nil {
+				log.WithError(err).Warn("Error closing connection to minion - no golem")
+			}
+			return
+		}
 	}
 
 	log.WithField("ID", minion.ID).Info("minion assigned id and ready")
