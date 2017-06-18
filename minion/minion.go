@@ -278,6 +278,8 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 			mutex.Lock()
 			golem = golems[webstrate]
 			if golem != nil {
+				log.Info("Golem found")
+				mutex.Unlock()
 				break
 			}
 			mutex.Unlock()
@@ -285,6 +287,7 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if golem == nil {
 			nf := NewGolemNotFound(webstrate)
+			// TODO use WriteJSON instead of marshaling manually
 			if notFound, err := json.Marshal(nf); err != nil {
 				conn.WriteMessage(websocket.TextMessage, notFound)
 			}
