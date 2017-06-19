@@ -97,7 +97,8 @@ func Spawn(webstrateID string) (string, error) {
 		docker.CreateContainerOptions{
 			Name: getName(webstrateID),
 			Config: &docker.Config{
-				Image: "webstrates/golem:latest",
+				Image:  "webstrates/golem:latest",
+				Labels: map[string]string{"webstrate": webstrateID},
 				ExposedPorts: map[docker.Port]struct{}{
 					"9222/tcp": {},
 				},
