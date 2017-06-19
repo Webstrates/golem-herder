@@ -185,6 +185,28 @@ func Restart(webstrateID string) (string, error) {
 	return Spawn(webstrateID)
 }
 
+// PortOf returns the public port mapped to the given privatePort for
+// a golem on the given webstrate.
+func PortOf(webstrate string, privatePort int64) (int64, error) {
+	// Not very effective to do a list each time the port is needed
+	golems, err := List()
+	if err != nil {
+		return -1, err
+	}
+
+	for _, golem := range golems {
+		if ws, ok := golem.Labels["webstrate"]; ok && webstrate == ws {
+			for _, port := range golem.Ports {
+				if port.PrivatePort == privatePort {
+					return port.PublicPort, nil
+				}
+			}
+		}
+	}
+
+	return -1, fmt.Errorf("No container found for webstrate")
+}
+
 // List the running golems
 func List() ([]docker.APIContainers, error) {
 
