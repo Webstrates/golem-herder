@@ -3,7 +3,6 @@ package golem
 import (
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,20 +12,6 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 )
-
-func getPort() int {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		panic(err)
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		panic(err)
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
-}
 
 func getName(id string) string {
 	return fmt.Sprintf("golem-%s", id)
@@ -94,7 +79,7 @@ func Spawn(webstrateID string) (string, error) {
 					"9222/tcp": []docker.PortBinding{
 						docker.PortBinding{
 							HostIP:   "0.0.0.0",
-							HostPort: fmt.Sprintf("%d", getPort()),
+							HostPort: fmt.Sprintf("%d", container.GetAvailableHostPort()),
 						},
 					},
 				},

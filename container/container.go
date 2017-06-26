@@ -5,10 +5,26 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 
 	log "github.com/Sirupsen/logrus"
 	docker "github.com/fsouza/go-dockerclient"
 )
+
+// GetAvailableHostPort returns an available (and random) port on the host machine
+func GetAvailableHostPort() int {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		panic(err)
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
 
 // List containers matching the given predicate.
 func List(client *docker.Client, matches func(container *docker.APIContainers) bool) ([]docker.APIContainers, error) {
@@ -149,7 +165,11 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 // RunDaemonized will pull, create and start the container piping stdout and stderr to the given channels.
 // This function is meant to run longlived, persistent processes.
 // A directory (/<name>) will be mounted in the container in which data which must be persisted between sessions can be kept.
-func RunDaemonized(name, repository, tag string, ports map[int]int, stdout, stderr chan<- []byte) error {
+func RunDaemonized(name, repository, tag string, ports map[int]int, stdout, stderr chan<- []byte, done chan<- bool) error {
+
+	if stdout == nil || stderr == nil {
+		return fmt.Errorf("stdout and stderr cannot be nil")
+	}
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
@@ -157,7 +177,12 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, stdout, stde
 		return err
 	}
 
-	container, err := run(client, name, repository, tag, ports, nil)
+	// Construct mounts
+	mounts := map[string]string{
+		fmt.Sprintf("/mounts/%v", name): fmt.Sprintf("/%v", name),
+	}
+
+	container, err := run(client, name, repository, tag, ports, mounts)
 	if err != nil {
 		return err
 	}
@@ -178,6 +203,8 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, stdout, stde
 		_, err := r.Read(data)
 		out <- data
 		if err != nil {
+			// no more data
+			done <- true
 			return
 		}
 	}(stdoutr, stdout)
