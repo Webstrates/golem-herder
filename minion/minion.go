@@ -1,6 +1,7 @@
 package minion
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -171,7 +172,9 @@ func Spawn(env, output string, files map[string][]byte) ([]byte, string, error) 
 	}
 
 	// return stdout iff output == "stdout" else read file (name given by output)
-	stdout, stderr, err := container.Run(filepath.Base(dir), fmt.Sprintf("webstrates/%s", env), "latest", mounts)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	stdout, stderr, err := container.RunLambda(ctx, filepath.Base(dir), fmt.Sprintf("webstrates/%s", env), "latest", mounts)
 	if err != nil {
 		return nil, "", err
 	}

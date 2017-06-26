@@ -31,6 +31,11 @@ var serveCmd = &cobra.Command{
 		gv1.HandleFunc("/reset/{webstrate}", herder.ResetHandler)
 		gv1.HandleFunc("/kill/{webstrate}", herder.KillHandler)
 
+		// bah, does not work due to absolute urls in html page
+		//proxyPrefix := "/proxy"
+		//proxy := golem.NewGolemReverseProxy(proxyPrefix, golem.PortOf)
+		//gv1.PathPrefix(proxyPrefix).Handler(proxy)
+
 		// Connect a golem. Golem will get status info and connect information on this socket.
 		gv1.HandleFunc("/connect/{webstrate}", minion.GolemConnectHandler)
 

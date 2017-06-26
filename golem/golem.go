@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/Webstrates/golem-herder/container"
 
 	docker "github.com/fsouza/go-dockerclient"
 )
@@ -29,31 +30,6 @@ func getPort() int {
 
 func getName(id string) string {
 	return fmt.Sprintf("golem-%s", id)
-}
-
-func containersMatching(client *docker.Client, matches func(container *docker.APIContainers) bool) ([]docker.APIContainers, error) {
-	containers, err := client.ListContainers(docker.ListContainersOptions{All: false})
-	if err != nil {
-		log.WithError(err).Error("Error listing containers")
-		return nil, err
-	}
-
-	matching := []docker.APIContainers{}
-	for _, container := range containers {
-		if matches(&container) {
-			matching = append(matching, container)
-		}
-	}
-	return matching, nil
-}
-
-func containerHasName(container *docker.APIContainers, name string) bool {
-	for _, containerName := range container.Names {
-		if containerName == "/"+name {
-			return true
-		}
-	}
-	return false
 }
 
 // Spawn will create a new container and inject a golem into it
@@ -152,8 +128,8 @@ func Kill(webstrateID string) error {
 		return err
 	}
 
-	golems, err := containersMatching(client, func(c *docker.APIContainers) bool {
-		return strings.HasPrefix(c.Image, "webstrates/golem") && containerHasName(c, getName(webstrateID))
+	golems, err := container.List(client, func(c *docker.APIContainers) bool {
+		return strings.HasPrefix(c.Image, "webstrates/golem") && container.WithName(getName(webstrateID))(c)
 	})
 
 	if len(golems) != 1 {
@@ -217,7 +193,7 @@ func List() ([]docker.APIContainers, error) {
 		return nil, err
 	}
 
-	golems, err := containersMatching(client, func(container *docker.APIContainers) bool {
+	golems, err := container.List(client, func(container *docker.APIContainers) bool {
 		return strings.HasPrefix(container.Image, "webstrates/golem")
 	})
 	if err != nil {
