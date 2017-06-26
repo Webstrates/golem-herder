@@ -119,11 +119,10 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 		for outsidePort, insidePort := range ports {
 			insidePortTCP := docker.Port(fmt.Sprintf("%d/tcp", insidePort))
 			exposedPorts[insidePortTCP] = struct{}{}
-			portBindings[insidePortTCP] = []docker.PortBinding{
-				docker.PortBinding{
-					HostIP:   "0.0.0.0",
-					HostPort: fmt.Sprintf("%d", outsidePort),
-				},
+			portBindings[insidePortTCP] = []docker.PortBinding{{
+				HostIP:   "0.0.0.0",
+				HostPort: fmt.Sprintf("%d", outsidePort),
+			},
 			}
 		}
 	}

@@ -76,11 +76,10 @@ func Spawn(webstrateID string) (string, error) {
 			HostConfig: &docker.HostConfig{
 				Links: []string{"webstrates"},
 				PortBindings: map[docker.Port][]docker.PortBinding{
-					"9222/tcp": []docker.PortBinding{
-						docker.PortBinding{
-							HostIP:   "0.0.0.0",
-							HostPort: fmt.Sprintf("%d", container.GetAvailableHostPort()),
-						},
+					"9222/tcp": []docker.PortBinding{{
+						HostIP:   "0.0.0.0",
+						HostPort: fmt.Sprintf("%d", container.GetAvailableHostPort()),
+					},
 					},
 				},
 				SecurityOpt: []string{
