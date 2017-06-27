@@ -86,7 +86,7 @@ func (tm *Manager) Generate(subject string, claims jwt.MapClaims) (string, error
 		"iss": "au/webstrates",
 		"iat": time.Now().Unix(),
 		"sub": subject,
-		"id":  guid.String(),
+		"jti": guid.String(),
 		"app": "golem-herder"}
 
 	// Override given claims with core

@@ -38,7 +38,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 		return nil, fmt.Errorf("Could not read from token claims")
 	}
 
-	uname := fmt.Sprintf("%s-%v", name, claims["id"])
+	uname := fmt.Sprintf("%s-%v", name, claims["jti"])
 
 	// Get random outside ports
 	ports := map[int]int{}
@@ -52,7 +52,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 	// Labels for container
 	labels := map[string]string{
 		"token":   token.Raw,
-		"tokenid": fmt.Sprintf("%v", claims["id"]),
+		"tokenid": fmt.Sprintf("%v", claims["jti"]),
 	}
 
 	done := make(chan bool, 5) // does not need to be synchronized
@@ -110,14 +110,14 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 		return
 	}
 
-	time, ok := claims["TimeInMilliseconds"].(float64)
+	time, ok := claims["tims"].(float64)
 	if !ok {
 		http.Error(w, "Could not extract TimeInMilliseconds from token", 500)
 		return
 	}
 
 	// Construct meter
-	m, err := metering.NewMeter(claims["id"].(string), int(time))
+	m, err := metering.NewMeter(claims["jti"].(string), int(time))
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return

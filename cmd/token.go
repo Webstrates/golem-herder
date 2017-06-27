@@ -25,7 +25,7 @@ var tokenCmd = &cobra.Command{
 			panic(err)
 		}
 
-		token, err := m.Generate(email, jwt.MapClaims{"TimeInMilliseconds": timeInMilliseconds})
+		token, err := m.Generate(email, jwt.MapClaims{"tims": timeInMilliseconds})
 		if err != nil {
 			panic(err)
 		}
@@ -40,6 +40,6 @@ func init() {
 
 	// TimeInMilliseconds to put in the token
 
-	tokenCmd.Flags().IntVarP(&timeInMilliseconds, "time", "t", 3e4, "How many milliseconds do you want in your token?")
+	tokenCmd.Flags().IntVarP(&timeInMilliseconds, "tims", "t", 3e4, "How many milliseconds do you want in your token?")
 	tokenCmd.Flags().StringVarP(&email, "email", "e", "", "What is your email?")
 }

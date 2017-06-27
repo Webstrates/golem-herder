@@ -17,7 +17,7 @@ import (
 	"github.com/Webstrates/golem-herder/container"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	uuid "github.com/satori/go.uuid"
+	"github.com/rs/xid"
 )
 
 // List all connected minions
@@ -246,7 +246,7 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		minions[webstrate] = map[string]*Minion{}
 	}
 
-	id := uuid.NewV4().String()
+	id := xid.New().String()
 
 	// create and append minion, init minion.in
 	minion := Minion{
