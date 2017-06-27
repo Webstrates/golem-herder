@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -105,10 +106,32 @@ func (tm *Manager) Generate(subject string, claims jwt.MapClaims) (string, error
 	return tokenString, nil
 }
 
+func tokenFromHeader(r *http.Request) (string, bool) {
+	// Extract "Authorization: Bearer <token>" header
+	bearer := r.Header.Get("Authorization")
+	if strings.HasPrefix(strings.ToLower(bearer), "bearer") && len(bearer) > 6 {
+		return bearer[7:], true
+	}
+	return "", false
+}
+
+func tokenFromQueryParam(r *http.Request) (string, bool) {
+	token := r.URL.Query().Get("token")
+	if token != "" {
+		return token, true
+	}
+	return "", false
+}
+
 // ValidatedHandler will return a http handler which validates a request prior to invoking the given handler.
 func ValidatedHandler(validator Validator, handler func(w http.ResponseWriter, r *http.Request, token *jwt.Token)) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := r.URL.Query().Get("token")
+
+		token, ok := tokenFromHeader(r)
+		if !ok {
+			token, _ = tokenFromQueryParam(r)
+		}
+
 		t, err := validator.Validate(token)
 		if err != nil {
 			http.Error(w, err.Error(), 401 /* Unauthorized */)

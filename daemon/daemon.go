@@ -24,8 +24,9 @@ type Options struct {
 
 // Info is information about a running deamon.
 type Info struct {
-	Name  string
-	Ports map[int]int
+	Name    string
+	Address string
+	Ports   map[int]int
 }
 
 // Spawn a daemon with the given options.
@@ -56,7 +57,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 	}
 
 	done := make(chan bool, 5) // does not need to be synchronized
-	err := container.RunDaemonized(uname, image, "latest", ports, labels, options.StdOut, options.StdErr, done)
+	c, err := container.RunDaemonized(uname, image, "latest", ports, labels, options.StdOut, options.StdErr, done)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +85,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 		}
 	}()
 
-	return &Info{Name: uname, Ports: invertedPorts}, nil
+	return &Info{Address: c.NetworkSettings.IPAddress, Name: uname, Ports: invertedPorts}, nil
 }
 
 // List the daemons running on this token.

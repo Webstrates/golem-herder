@@ -38,7 +38,7 @@ var serveCmd = &cobra.Command{
 
 		gv1 := r.PathPrefix("/golem/v1").Subrouter()
 
-		// TODO move these handler to golem
+		// TODO move these handlers to golem
 		gv1.HandleFunc("/", herder.HomeHandler)
 		gv1.HandleFunc("/ls", herder.ListHandler)
 		gv1.HandleFunc("/spawn/{webstrate}", herder.SpawnHandler)

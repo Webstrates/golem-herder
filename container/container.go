@@ -191,12 +191,12 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 // RunDaemonized will pull, create and start the container piping stdout and stderr to the given channels.
 // This function is meant to run longlived, persistent processes.
 // A directory (/<name>) will be mounted in the container in which data which must be persisted between sessions can be kept.
-func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[string]string, stdout, stderr chan<- []byte, done chan<- bool) error {
+func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[string]string, stdout, stderr chan<- []byte, done chan<- bool) (*docker.Container, error) {
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
 		log.WithError(err).Error("Could not create docker client")
-		return err
+		return nil, err
 	}
 
 	// Construct mounts
@@ -206,7 +206,7 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[s
 
 	c, err := run(client, name, repository, tag, ports, mounts, labels)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Setup monitor for service - if it does done should be notified
@@ -235,7 +235,7 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[s
 	}
 
 	if stdout == nil || stderr == nil {
-		return nil
+		return c, nil
 	}
 
 	// Use a pipe to run stdout and stderr to channels
@@ -270,7 +270,7 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[s
 		}
 	}(stderrr, stderr)
 
-	return nil
+	return c, nil
 }
 
 // RunLambda will pull, create and start the container returning its stdout.
