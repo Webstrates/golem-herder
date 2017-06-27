@@ -73,7 +73,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 				ms := (time.Now().UnixNano() - t0) / 1e6
 				if err := options.Meter.RecordMilliseconds(int(ms)); err != nil {
 					log.WithError(err).Warn("Could not record time spent - kill and exit")
-					if err := container.Kill(uname, false); err != nil {
+					if err := container.Kill(uname, false, false); err != nil {
 						log.WithError(err).Warn("Error killing container")
 					}
 					return

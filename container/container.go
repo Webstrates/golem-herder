@@ -80,7 +80,7 @@ func WithLabel(label, value string) func(container *docker.APIContainers) bool {
 }
 
 // Kill the container with the given name and optionally remove mounted volumes.
-func Kill(name string, destroyData bool) error {
+func Kill(name string, removeContainer, destroyData bool) error {
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
@@ -100,14 +100,16 @@ func Kill(name string, destroyData bool) error {
 
 	log.WithField("container", containers[0].ID).Info("Killing container")
 
-	err = client.RemoveContainer(docker.RemoveContainerOptions{
-		ID:            containers[0].ID,
-		Force:         true,
-		RemoveVolumes: destroyData,
-	})
-	if err != nil {
-		log.WithError(err).Warn("Error removing container")
-		return err
+	if removeContainer {
+		err = client.RemoveContainer(docker.RemoveContainerOptions{
+			ID:            containers[0].ID,
+			Force:         true,
+			RemoveVolumes: destroyData,
+		})
+		if err != nil {
+			log.WithError(err).Warn("Error removing container")
+			return err
+		}
 	}
 
 	return nil
