@@ -177,13 +177,7 @@ func List() ([]docker.APIContainers, error) {
 		return nil, err
 	}
 
-	golems, err := container.List(client, func(container *docker.APIContainers) bool {
+	return container.List(client, func(container *docker.APIContainers) bool {
 		return strings.HasPrefix(container.Image, "webstrates/golem")
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	return golems, nil
-
 }

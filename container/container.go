@@ -28,6 +28,17 @@ func GetAvailableHostPort() int {
 
 // List containers matching the given predicate.
 func List(client *docker.Client, matches func(container *docker.APIContainers) bool) ([]docker.APIContainers, error) {
+
+	// Create client if it is not given
+	if client == nil {
+		c, err := docker.NewClientFromEnv()
+		if err != nil {
+			log.WithError(err).Error("Could not create docker client")
+			return nil, err
+		}
+		client = c
+	}
+
 	containers, err := client.ListContainers(docker.ListContainersOptions{All: false})
 	if err != nil {
 		log.WithError(err).Error("Error listing containers")
@@ -50,6 +61,16 @@ func WithName(name string) func(container *docker.APIContainers) bool {
 			if containerName == "/"+name {
 				return true
 			}
+		}
+		return false
+	}
+}
+
+// WithLabel returns a func to match containers based on their label (for use with e.g. List)
+func WithLabel(label, value string) func(container *docker.APIContainers) bool {
+	return func(container *docker.APIContainers) bool {
+		if labelValue, ok := container.Labels[label]; ok && value == labelValue {
+			return true
 		}
 		return false
 	}
@@ -89,7 +110,7 @@ func Kill(name string, destroyData bool) error {
 	return nil
 }
 
-func run(client *docker.Client, name, repository, tag string, ports map[int]int, mounts map[string]string) (*docker.Container, error) {
+func run(client *docker.Client, name, repository, tag string, ports map[int]int, mounts map[string]string, labels map[string]string) (*docker.Container, error) {
 
 	log.WithFields(log.Fields{"image": fmt.Sprintf("%s:%s", repository, tag)}).Info("Pulling image")
 
@@ -132,6 +153,7 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 			Name: name,
 			Config: &docker.Config{
 				Image:        fmt.Sprintf("%s:%s", repository, tag),
+				Labels:       labels,
 				ExposedPorts: exposedPorts,
 				Mounts:       ms,
 				AttachStdout: true,
@@ -164,7 +186,7 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 // RunDaemonized will pull, create and start the container piping stdout and stderr to the given channels.
 // This function is meant to run longlived, persistent processes.
 // A directory (/<name>) will be mounted in the container in which data which must be persisted between sessions can be kept.
-func RunDaemonized(name, repository, tag string, ports map[int]int, stdout, stderr chan<- []byte, done chan<- bool) error {
+func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[string]string, stdout, stderr chan<- []byte, done chan<- bool) error {
 
 	if stdout == nil || stderr == nil {
 		return fmt.Errorf("stdout and stderr cannot be nil")
@@ -181,7 +203,7 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, stdout, stde
 		fmt.Sprintf("/mounts/%v", name): fmt.Sprintf("/%v", name),
 	}
 
-	container, err := run(client, name, repository, tag, ports, mounts)
+	container, err := run(client, name, repository, tag, ports, mounts, labels)
 	if err != nil {
 		return err
 	}
@@ -231,7 +253,7 @@ func RunLambda(ctx context.Context, name, repository, tag string, mounts map[str
 		return nil, nil, err
 	}
 
-	container, err := run(client, name, repository, tag, nil, mounts)
+	container, err := run(client, name, repository, tag, nil, mounts, nil)
 	if err != nil {
 		return nil, nil, err
 	}
