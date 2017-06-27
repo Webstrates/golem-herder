@@ -85,7 +85,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 		}
 	}()
 
-	return &Info{Address: c.NetworkSettings.IPAddress, Name: uname, Ports: invertedPorts}, nil
+	return &Info{Address: c.NetworkSettings.Networks["bridge"].IPAddress, Name: uname, Ports: invertedPorts}, nil
 }
 
 // List the daemons running on this token.
@@ -113,7 +113,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 
 	time, ok := claims["tims"].(float64)
 	if !ok {
-		http.Error(w, "Could not extract TimeInMilliseconds from token", 500)
+		http.Error(w, "Could not extract \"tims\" (time in milliseconds) from token", 500)
 		return
 	}
 

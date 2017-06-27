@@ -11,6 +11,7 @@ import (
 var db *bolt.DB
 
 func init() {
+	// TODO this prevents the token cmd from running if the herder is running
 	meterdb, err := bolt.Open("meter.db", 0600, nil)
 	if err != nil {
 		panic(err)

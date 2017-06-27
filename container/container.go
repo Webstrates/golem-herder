@@ -99,8 +99,14 @@ func Kill(name string, removeContainer, destroyData bool) error {
 	}
 
 	log.WithField("container", containers[0].ID).Info("Killing container")
+	err = client.KillContainer(docker.KillContainerOptions{ID: containers[0].ID})
+	if err != nil {
+		return err
+	}
 
 	if removeContainer {
+
+		log.WithField("container", containers[0].ID).Info("Removing container")
 		err = client.RemoveContainer(docker.RemoveContainerOptions{
 			ID:            containers[0].ID,
 			Force:         true,
@@ -185,7 +191,12 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 
 	log.WithField("containerid", container.ID).Info("Container started")
 
-	return container, nil
+	c, err := client.InspectContainer(container.ID)
+	if err != nil {
+		return container, nil
+	}
+
+	return c, nil
 }
 
 // RunDaemonized will pull, create and start the container piping stdout and stderr to the given channels.
