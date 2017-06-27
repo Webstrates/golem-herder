@@ -3,7 +3,6 @@ package metering
 import (
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/boltdb/bolt"
 )
@@ -72,8 +71,47 @@ func (m *Meter) MillisecondsRemaining() (int, error) {
 	return msr, nil
 }
 
-func (m *Meter) RecordTime(duration time.Duration) {
+func (m *Meter) RecordMilliseconds(ms int) error {
+	return db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(m.ID))
+		if b != nil {
+			var remaining, used int
+			// Get remaining
+			res := b.Get([]byte("MillisecondsRemaining"))
+			if res != nil {
+				ms, err := strconv.Atoi(string(res))
+				if err != nil {
+					return err
+				}
+				remaining = ms
+			}
+			// Do not record if >= 0
+			if remaining <= 0 {
+				return fmt.Errorf("Could not record time - no time left")
+			}
 
+			// Get used
+			res = b.Get([]byte("MillisecondsUsed"))
+			if res != nil {
+				ms, err := strconv.Atoi(string(res))
+				if err != nil {
+					return err
+				}
+				used = ms
+			}
+			// Update
+			err := b.Put([]byte("MillisecondsRemaining"), []byte(strconv.Itoa(remaining-ms)))
+			if err != nil {
+				return err
+			}
+			err = b.Put([]byte("MillisecondsUsed"), []byte(strconv.Itoa(used+ms)))
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		return fmt.Errorf("Could not update for given id")
+	})
 }
 
 func (m *Meter) Inspect() (*Status, error) {
