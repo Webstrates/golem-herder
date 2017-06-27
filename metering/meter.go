@@ -51,25 +51,39 @@ type Status struct {
 }
 
 func (m *Meter) MillisecondsRemaining() (int, error) {
-	var msr int
-	err := db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(m.ID))
-		if b != nil {
-			res := b.Get([]byte("MillisecondsRemaining"))
-			if res != nil {
-				ms, err := strconv.Atoi(string(res))
-				if err != nil {
-					return err
-				}
-				msr = ms
-			}
-		}
-		return fmt.Errorf("Could not get time remaining")
-	})
+	ints, err := m.ReadInts("MillisecondsRemaining")
 	if err != nil {
 		return 0, err
 	}
-	return msr, nil
+	if len(ints) != 1 {
+		return 0, fmt.Errorf("Unexpected amount of ints returned from db")
+	}
+	return ints[0], nil
+}
+
+func (m *Meter) ReadInts(keys ...string) ([]int, error) {
+	values := make([]int, len(keys))
+	err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(m.ID))
+		if b != nil {
+			for i := 0; i < len(keys); i++ {
+				res := b.Get([]byte(keys[i]))
+				if res != nil {
+					value, err := strconv.Atoi(string(res))
+					if err != nil {
+						return err
+					}
+					values[i] = value
+				}
+			}
+			return nil
+		}
+		return fmt.Errorf("Could not find bucket")
+	})
+	if err != nil {
+		return nil, err
+	}
+	return values, nil
 }
 
 func (m *Meter) RecordMilliseconds(ms int) error {
