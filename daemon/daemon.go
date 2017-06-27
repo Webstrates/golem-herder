@@ -124,7 +124,11 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 		return
 	}
 
-	// TODO check if meter has resources before spawning
+	// Check if meter has resources before spawning
+	if ms, err := m.MillisecondsRemaining(); err != nil || ms <= 0 {
+		http.Error(w, "Not even running on fumes", 402 /* Payment required */)
+		return
+	}
 
 	done := make(chan bool)
 
