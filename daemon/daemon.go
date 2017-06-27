@@ -123,6 +123,8 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 		return
 	}
 
+	// TODO check if meter has resources before spawning
+
 	done := make(chan bool)
 
 	go func() {
