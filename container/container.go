@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
+
+	"github.com/spf13/viper"
 
 	log "github.com/Sirupsen/logrus"
 	docker "github.com/fsouza/go-dockerclient"
@@ -188,10 +191,6 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 // A directory (/<name>) will be mounted in the container in which data which must be persisted between sessions can be kept.
 func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[string]string, stdout, stderr chan<- []byte, done chan<- bool) error {
 
-	if stdout == nil || stderr == nil {
-		return fmt.Errorf("stdout and stderr cannot be nil")
-	}
-
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
 		log.WithError(err).Error("Could not create docker client")
@@ -200,12 +199,41 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[s
 
 	// Construct mounts
 	mounts := map[string]string{
-		fmt.Sprintf("/mounts/%v", name): fmt.Sprintf("/%v", name),
+		fmt.Sprintf("%v/%v", viper.GetString("mounts"), name): fmt.Sprintf("/%v", name),
 	}
 
-	container, err := run(client, name, repository, tag, ports, mounts, labels)
+	c, err := run(client, name, repository, tag, ports, mounts, labels)
 	if err != nil {
 		return err
+	}
+
+	// Setup monitor for service - if it does done should be notified
+	if done != nil {
+		go func() {
+			// Cleanup container after it exits
+			defer func() {
+				err = client.RemoveContainer(docker.RemoveContainerOptions{
+					ID:            c.ID,
+					Force:         true,
+					RemoveVolumes: false,
+				})
+				if err != nil {
+					log.WithError(err).Warn("Error removing container")
+				}
+			}()
+			for {
+				<-time.After(time.Second)
+				if cntnr, err := client.InspectContainer(c.ID); err != nil || !cntnr.State.Running {
+					log.WithField("name", name).WithField("id", c.ID).Info("Container looks dead")
+					done <- true
+					return
+				}
+			}
+		}()
+	}
+
+	if stdout == nil || stderr == nil {
+		return nil
 	}
 
 	// Use a pipe to run stdout and stderr to channels
@@ -213,7 +241,7 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[s
 	stderrr, stderrw := io.Pipe()
 	client.Logs(docker.LogsOptions{
 		Stdout:       true,
-		Container:    container.ID,
+		Container:    c.ID,
 		OutputStream: stdoutw,
 		ErrorStream:  stderrw,
 	})
@@ -224,8 +252,7 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[s
 		_, err := r.Read(data)
 		out <- data
 		if err != nil {
-			// no more data
-			done <- true
+			// stop looking for stdout
 			return
 		}
 	}(stdoutr, stdout)
@@ -236,6 +263,7 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[s
 		_, err := r.Read(data)
 		out <- data
 		if err != nil {
+			// stop looking for stderr
 			return
 		}
 	}(stderrr, stderr)

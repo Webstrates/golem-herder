@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/boltdb/bolt"
 )
 
@@ -72,7 +73,7 @@ func (m *Meter) MillisecondsRemaining() (int, error) {
 }
 
 func (m *Meter) RecordMilliseconds(ms int) error {
-	return db.View(func(tx *bolt.Tx) error {
+	return db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(m.ID))
 		if b != nil {
 			var remaining, used int
@@ -108,6 +109,7 @@ func (m *Meter) RecordMilliseconds(ms int) error {
 			if err != nil {
 				return err
 			}
+			log.WithField("remaining", remaining-ms).Info("Recorded some time")
 			return nil
 		}
 		return fmt.Errorf("Could not update for given id")
