@@ -111,14 +111,25 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 		return
 	}
 
-	time, ok := claims["tims"].(float64)
+	crd, ok := claims["crd"].(float64)
 	if !ok {
-		http.Error(w, "Could not extract \"tims\" (time in milliseconds) from token", 500)
+		http.Error(w, "Could not extract \"crd\" (credits) from token", 500)
 		return
 	}
 
-	// Construct meter
-	m, err := metering.NewMeter(claims["jti"].(string), int(time))
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		http.Error(w, "Could not extract \"exp\" (expiration) from token", 500)
+		return
+	}
+
+	// Construct meter - one meter pr sub(ject) aka email
+	subject := claims["sub"].(string)
+	tokenID := claims["jti"].(string)
+	credits := int(crd)
+	expiration := int(exp)
+
+	m, err := metering.NewMeter(subject, tokenID, expiration, credits)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -145,7 +156,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 		Done:   done,
 	}
 
-	// TODO support content in similar fashion to labdaed minions
+	// TODO support content in similar fashion to lambdaed minions
 	info, err := Spawn(token, name, image, options)
 	if err != nil {
 		http.Error(w, err.Error(), 500)

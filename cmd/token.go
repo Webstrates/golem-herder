@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	timeInMilliseconds int
-	email              string
+	credits int
+	email   string
 )
 
 // serveCmd represents the serve command
@@ -25,7 +25,7 @@ var tokenCmd = &cobra.Command{
 			panic(err)
 		}
 
-		token, err := m.Generate(email, jwt.MapClaims{"tims": timeInMilliseconds})
+		token, err := m.Generate(email, jwt.MapClaims{"crd": credits})
 		if err != nil {
 			panic(err)
 		}
@@ -38,8 +38,6 @@ var tokenCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(tokenCmd)
 
-	// TimeInMilliseconds to put in the token
-
-	tokenCmd.Flags().IntVarP(&timeInMilliseconds, "tims", "t", 3e4, "How many milliseconds do you want in your token?")
+	tokenCmd.Flags().IntVarP(&credits, "crd", "c", 3e4, "How many credits do you want in your token?")
 	tokenCmd.Flags().StringVarP(&email, "email", "e", "", "What is your email?")
 }

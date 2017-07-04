@@ -24,10 +24,30 @@ func init() {
 // Each token has a Bucket with the token id as name.
 // Each Bucket has the following properties:
 // * Credits
-func NewMeter(id string, credits int) (*Meter, error) {
+func NewMeter(id string, token string, expiration int, credits int) (*Meter, error) {
 	err := db.Update(func(tx *bolt.Tx) error {
-		if b, err := tx.CreateBucket([]byte(id)); err == nil {
-			b.Put([]byte("Credits"), []byte(strconv.Itoa(credits)))
+		b, err := tx.CreateBucketIfNotExists([]byte(id))
+		if err != nil {
+			return err
+		}
+		// token cannot be re-used, fill only if it is unseen
+		exp := b.Get([]byte(token))
+		if exp == nil {
+			// Add token to bucket
+			b.Put([]byte(token), []byte(strconv.Itoa(expiration)))
+			// Add credits to bucket
+			c := b.Get([]byte("Credits"))
+			if c != nil {
+				balance, err := strconv.Atoi(string(c))
+				if err != nil {
+					return err
+				}
+				log.WithField("balance", balance).WithField("credits", credits).Info("Inserting new credits")
+				b.Put([]byte("Credits"), []byte(strconv.Itoa(balance+credits)))
+			} else {
+				log.WithField("credits", credits).Info("Inserting new credits")
+				b.Put([]byte("Credits"), []byte(strconv.Itoa(credits)))
+			}
 		}
 		return nil
 	})
