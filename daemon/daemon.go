@@ -40,6 +40,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 		return nil, fmt.Errorf("Could not read from token claims")
 	}
 
+	// TODO change this if you want to e.g. restrict to one container of each kind
 	uname := fmt.Sprintf("%s-%v", name, claims["jti"])
 
 	// Get random outside ports
@@ -53,6 +54,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 
 	// Labels for container
 	labels := map[string]string{
+		"subject": claims["sub"].(string),
 		"token":   token.Raw,
 		"tokenid": fmt.Sprintf("%v", claims["jti"]),
 	}

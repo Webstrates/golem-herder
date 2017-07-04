@@ -11,12 +11,17 @@ import (
 var db *bolt.DB
 
 func init() {
-	// TODO this prevents the token cmd from running if the herder is running
+	// If already initialized, just return
+	if db != nil {
+		return
+	}
 	meterdb, err := bolt.Open("meter.db", 0600, nil)
 	if err != nil {
 		panic(err)
 	}
 	db = meterdb
+
+	// TODO Start token removal process
 }
 
 // NewMeter returns a new Meter for the given token
@@ -30,24 +35,28 @@ func NewMeter(id string, token string, expiration int, credits int) (*Meter, err
 		if err != nil {
 			return err
 		}
-		// token cannot be re-used, fill only if it is unseen
-		exp := b.Get([]byte(token))
-		if exp == nil {
-			// Add token to bucket
-			b.Put([]byte(token), []byte(strconv.Itoa(expiration)))
-			// Add credits to bucket
-			c := b.Get([]byte("Credits"))
-			if c != nil {
-				balance, err := strconv.Atoi(string(c))
-				if err != nil {
-					return err
-				}
-				log.WithField("balance", balance).WithField("credits", credits).Info("Inserting new credits")
-				b.Put([]byte("Credits"), []byte(strconv.Itoa(balance+credits)))
-			} else {
-				log.WithField("credits", credits).Info("Inserting new credits")
-				b.Put([]byte("Credits"), []byte(strconv.Itoa(credits)))
+
+		// Token cannot be re-used, fill only if it is unseen
+		tokens, err := b.CreateBucketIfNotExists([]byte("Tokens"))
+		if err != nil {
+			return err
+		}
+
+		// Add token to bucket
+		tokens.Put([]byte(token), []byte(strconv.Itoa(expiration)))
+
+		// Add credits to bucket
+		c := b.Get([]byte("Credits"))
+		if c != nil {
+			balance, err := strconv.Atoi(string(c))
+			if err != nil {
+				return err
 			}
+			log.WithField("balance", balance).WithField("credits", credits).Info("Inserting new credits")
+			b.Put([]byte("Credits"), []byte(strconv.Itoa(balance+credits)))
+		} else {
+			log.WithField("credits", credits).Info("Inserting new credits")
+			b.Put([]byte("Credits"), []byte(strconv.Itoa(credits)))
 		}
 		return nil
 	})
@@ -68,6 +77,7 @@ type Status struct {
 	Credits int
 }
 
+// Credits returns the remaining credits for the meter
 func (m *Meter) Credits() (int, error) {
 	ints, err := m.readIntegers("Credits")
 	if err != nil {
@@ -104,6 +114,7 @@ func (m *Meter) readIntegers(keys ...string) ([]int, error) {
 	return values, nil
 }
 
+// Record will record the usage of the given amount of credits
 func (m *Meter) Record(credits int) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(m.ID))
@@ -135,6 +146,8 @@ func (m *Meter) Record(credits int) error {
 	})
 }
 
+// Inspect returns the status of the meter, incl:
+// * Credits - the remaining credits
 func (m *Meter) Inspect() (*Status, error) {
 	credits, err := m.Credits()
 	if err != nil {
