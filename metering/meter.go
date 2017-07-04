@@ -23,14 +23,11 @@ func init() {
 // Database is structured as follows:
 // Each token has a Bucket with the token id as name.
 // Each Bucket has the following properties:
-// * MillisecondsUsed
-// * MillisecondsRemaining
-// * TODO figure out more stats to track
-func NewMeter(id string, remainingMs int) (*Meter, error) {
+// * Credits
+func NewMeter(id string, credits int) (*Meter, error) {
 	err := db.Update(func(tx *bolt.Tx) error {
 		if b, err := tx.CreateBucket([]byte(id)); err == nil {
-			b.Put([]byte("MillisecondsRemaining"), []byte(strconv.Itoa(remainingMs)))
-			b.Put([]byte("MillisecondsUsed"), []byte("0"))
+			b.Put([]byte("Credits"), []byte(strconv.Itoa(credits)))
 		}
 		return nil
 	})
@@ -48,11 +45,11 @@ type Meter struct {
 
 // Status contains information about the current status of the resources of a token
 type Status struct {
-	MillisecondsRemaining int
+	Credits int
 }
 
-func (m *Meter) MillisecondsRemaining() (int, error) {
-	ints, err := m.ReadInts("MillisecondsRemaining")
+func (m *Meter) Credits() (int, error) {
+	ints, err := m.readIntegers("Credits")
 	if err != nil {
 		return 0, err
 	}
@@ -62,7 +59,7 @@ func (m *Meter) MillisecondsRemaining() (int, error) {
 	return ints[0], nil
 }
 
-func (m *Meter) ReadInts(keys ...string) ([]int, error) {
+func (m *Meter) readIntegers(keys ...string) ([]int, error) {
 	values := make([]int, len(keys))
 	err := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(m.ID))
@@ -87,44 +84,31 @@ func (m *Meter) ReadInts(keys ...string) ([]int, error) {
 	return values, nil
 }
 
-func (m *Meter) RecordMilliseconds(ms int) error {
+func (m *Meter) Record(credits int) error {
 	return db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(m.ID))
 		if b != nil {
-			var remaining, used int
+			var remaining int
 			// Get remaining
-			res := b.Get([]byte("MillisecondsRemaining"))
+			res := b.Get([]byte("Credits"))
 			if res != nil {
-				ms, err := strconv.Atoi(string(res))
+				c, err := strconv.Atoi(string(res))
 				if err != nil {
 					return err
 				}
-				remaining = ms
+				remaining = c
 			}
 			// Do not record if >= 0
 			if remaining <= 0 {
-				return fmt.Errorf("Could not record time - no time left")
+				return fmt.Errorf("Could not record time - no credits left")
 			}
 
-			// Get used
-			res = b.Get([]byte("MillisecondsUsed"))
-			if res != nil {
-				ms, err := strconv.Atoi(string(res))
-				if err != nil {
-					return err
-				}
-				used = ms
-			}
 			// Update
-			err := b.Put([]byte("MillisecondsRemaining"), []byte(strconv.Itoa(remaining-ms)))
+			err := b.Put([]byte("Credits"), []byte(strconv.Itoa(remaining-credits)))
 			if err != nil {
 				return err
 			}
-			err = b.Put([]byte("MillisecondsUsed"), []byte(strconv.Itoa(used+ms)))
-			if err != nil {
-				return err
-			}
-			log.WithField("remaining", remaining-ms).Info("Recorded some time")
+			log.WithField("remaining", remaining-credits).Info("Recorded some credit usage")
 			return nil
 		}
 		return fmt.Errorf("Could not update for given id")
@@ -132,9 +116,9 @@ func (m *Meter) RecordMilliseconds(ms int) error {
 }
 
 func (m *Meter) Inspect() (*Status, error) {
-	msr, err := m.MillisecondsRemaining()
+	credits, err := m.Credits()
 	if err != nil {
 		return nil, err
 	}
-	return &Status{MillisecondsRemaining: msr}, nil
+	return &Status{Credits: credits}, nil
 }

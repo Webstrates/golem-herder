@@ -72,7 +72,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 			select {
 			case <-time.After(1000 * time.Millisecond):
 				ms := (time.Now().UnixNano() - t0) / 1e6
-				if err := options.Meter.RecordMilliseconds(int(ms)); err != nil {
+				if err := options.Meter.Record(int(ms)); err != nil {
 					log.WithError(err).Warn("Could not record time spent - kill and exit")
 					if err := container.Kill(uname, false, false); err != nil {
 						log.WithError(err).Warn("Error killing container")
@@ -125,7 +125,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	}
 
 	// Check if meter has resources before spawning
-	if ms, err := m.MillisecondsRemaining(); err != nil || ms <= 0 {
+	if credits, err := m.Credits(); err != nil || credits <= 0 {
 		http.Error(w, "Not even running on fumes", 402 /* Payment required */)
 		return
 	}
