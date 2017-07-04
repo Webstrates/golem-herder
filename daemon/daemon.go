@@ -15,11 +15,12 @@ import (
 
 // Options contains configuration options for the daemon spawn.
 type Options struct {
-	Meter  *metering.Meter
-	Ports  []int
-	StdOut chan []byte
-	StdErr chan []byte
-	Done   chan bool
+	Meter   *metering.Meter
+	Restart bool
+	Ports   []int
+	StdOut  chan []byte
+	StdErr  chan []byte
+	Done    chan bool
 }
 
 // Info is information about a running deamon.
@@ -57,7 +58,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 	}
 
 	done := make(chan bool, 5) // does not need to be synchronized
-	c, err := container.RunDaemonized(uname, image, "latest", ports, labels, options.StdOut, options.StdErr, done)
+	c, err := container.RunDaemonized(uname, image, "latest", ports, labels, options.Restart, options.StdOut, options.StdErr, done)
 	if err != nil {
 		return nil, err
 	}
@@ -149,11 +150,12 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	}()
 
 	options := Options{
-		Meter:  m,
-		Ports:  ports,
-		StdOut: nil,
-		StdErr: nil,
-		Done:   done,
+		Meter:   m,
+		Restart: true,
+		Ports:   ports,
+		StdOut:  nil,
+		StdErr:  nil,
+		Done:    done,
 	}
 
 	// TODO support content in similar fashion to lambdaed minions

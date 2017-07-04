@@ -121,7 +121,7 @@ func Kill(name string, removeContainer, destroyData bool) error {
 	return nil
 }
 
-func run(client *docker.Client, name, repository, tag string, ports map[int]int, mounts map[string]string, labels map[string]string) (*docker.Container, error) {
+func run(client *docker.Client, name, repository, tag string, ports map[int]int, mounts map[string]string, labels map[string]string, restart bool) (*docker.Container, error) {
 
 	log.WithFields(log.Fields{"image": fmt.Sprintf("%s:%s", repository, tag)}).Info("Pulling image")
 
@@ -176,22 +176,37 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 			},
 		},
 	)
+	var containerID string
 	if err != nil {
 		log.WithError(err).Error("Error creating container")
-		return nil, err
+		if !restart {
+			return nil, err
+		}
+		// try finding container by name
+		containers, err := List(client, WithName(name))
+		if err != nil {
+			return nil, err
+		}
+		if len(containers) != 1 {
+			return nil, fmt.Errorf("Could not create nor find container with name %s", name)
+		}
+		containerID = containers[0].ID
+	} else {
+		containerID = container.ID
 	}
-	log.WithField("containerid", container.ID).Info("Created container")
+
+	log.WithField("containerID", containerID).Info("Created/found container")
 
 	// Start container
-	err = client.StartContainer(container.ID, nil)
+	err = client.StartContainer(containerID, nil)
 	if err != nil {
 		log.WithError(err).Error("Error starting container")
 		return nil, err
 	}
 
-	log.WithField("containerid", container.ID).Info("Container started")
+	log.WithField("containerid", containerID).Info("Container (re-)started")
 
-	c, err := client.InspectContainer(container.ID)
+	c, err := client.InspectContainer(containerID)
 	if err != nil {
 		return container, nil
 	}
@@ -202,7 +217,7 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 // RunDaemonized will pull, create and start the container piping stdout and stderr to the given channels.
 // This function is meant to run longlived, persistent processes.
 // A directory (/<name>) will be mounted in the container in which data which must be persisted between sessions can be kept.
-func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[string]string, stdout, stderr chan<- []byte, done chan<- bool) (*docker.Container, error) {
+func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[string]string, restart bool, stdout, stderr chan<- []byte, done chan<- bool) (*docker.Container, error) {
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
@@ -215,7 +230,7 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[s
 		fmt.Sprintf("%v/%v", viper.GetString("mounts"), name): fmt.Sprintf("/%v", name),
 	}
 
-	c, err := run(client, name, repository, tag, ports, mounts, labels)
+	c, err := run(client, name, repository, tag, ports, mounts, labels, restart)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +309,7 @@ func RunLambda(ctx context.Context, name, repository, tag string, mounts map[str
 		return nil, nil, err
 	}
 
-	container, err := run(client, name, repository, tag, nil, mounts, nil)
+	container, err := run(client, name, repository, tag, nil, mounts, nil, false)
 	if err != nil {
 		return nil, nil, err
 	}
