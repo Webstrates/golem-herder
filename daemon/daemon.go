@@ -73,8 +73,8 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 		for {
 			t0 := time.Now().UnixNano()
 			select {
-			case <-time.After(1000 * time.Millisecond):
-				ms := (time.Now().UnixNano() - t0) / 1e6
+			case <-time.After(time.Second):
+				ms := (time.Now().UnixNano() - t0) / 1e9
 				if err := options.Meter.Record(int(ms)); err != nil {
 					log.WithError(err).Warn("Could not record time spent - kill and exit")
 					if err := container.Kill(uname, false, false); err != nil {
@@ -93,7 +93,11 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 
 // List the daemons running on this token.
 func List(token *jwt.Token) ([]docker.APIContainers, error) {
-	return container.List(nil, container.WithLabel("token", token.Raw))
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("Could extract claims from token")
+	}
+	return container.List(nil, container.WithLabel("subject", claims["sub"].(string)))
 }
 
 // SpawnHandler handles spawn requests
