@@ -181,6 +181,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	w.Write(s)
 }
 
+// Kill a container with the given name iff it is owned by the owner of the token
 func Kill(name string, token *jwt.Token) error {
 	// Check of subject label is the same as in the token
 	claims, ok := token.Claims.(jwt.MapClaims)
@@ -213,6 +214,7 @@ func ListHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	w.Write(s)
 }
 
+// KillHandler handles kill requests
 func KillHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	vars := mux.Vars(r)
 	name, ok := vars["name"]
