@@ -182,7 +182,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 }
 
 // Kill a container with the given name iff it is owned by the owner of the token
-func Kill(name string, token *jwt.Token) error {
+func Kill(name string, wipe bool, token *jwt.Token) error {
 	// Check of subject label is the same as in the token
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
@@ -196,7 +196,7 @@ func Kill(name string, token *jwt.Token) error {
 	if len(containers) != 1 {
 		return fmt.Errorf("Could not find container to kill")
 	}
-	return container.Kill(container.WithID(containers[0].ID), false, false)
+	return container.Kill(container.WithID(containers[0].ID), wipe, wipe)
 }
 
 // ListHandler handles list requests
@@ -222,7 +222,7 @@ func KillHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 		http.Error(w, "No name given", 404)
 		return
 	}
-	err := Kill(name, token)
+	err := Kill(name, r.URL.Query().Get("wipe") == "true", token)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
