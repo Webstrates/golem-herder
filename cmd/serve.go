@@ -65,7 +65,7 @@ var serveCmd = &cobra.Command{
 		dv1 := r.PathPrefix("/daemon/v1").Subrouter()
 		dv1.HandleFunc("/spawn", token.ValidatedHandler(m, daemon.SpawnHandler)).Methods("POST")
 		dv1.HandleFunc("/ls", token.ValidatedHandler(m, daemon.ListHandler))
-		//dv1.HandleFunc("/kill/{name}", daemon.KillHandler)
+		dv1.HandleFunc("/kill/{name}", token.ValidatedHandler(m, daemon.KillHandler))
 
 		// Tokens
 		//r.HandleFunc("/token/v1/generate", token.GenerateHandler)

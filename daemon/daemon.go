@@ -11,6 +11,7 @@ import (
 	"github.com/Webstrates/golem-herder/metering"
 	jwt "github.com/dgrijalva/jwt-go"
 	docker "github.com/fsouza/go-dockerclient"
+	"github.com/gorilla/mux"
 )
 
 // Options contains configuration options for the daemon spawn.
@@ -77,7 +78,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 				ms := (time.Now().UnixNano() - t0) / 1e9
 				if err := options.Meter.Record(int(ms)); err != nil {
 					log.WithError(err).Warn("Could not record time spent - kill and exit")
-					if err := container.Kill(uname, false, false); err != nil {
+					if err := container.Kill(container.WithName(uname), false, false); err != nil {
 						log.WithError(err).Warn("Error killing container")
 					}
 					return
@@ -180,6 +181,23 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	w.Write(s)
 }
 
+func Kill(name string, token *jwt.Token) error {
+	// Check of subject label is the same as in the token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return fmt.Errorf("Could extract claims from token")
+	}
+	subject := claims["subject"].(string)
+	containers, err := container.List(nil, container.And(container.WithName(name), container.WithLabel("subject", subject)))
+	if err != nil {
+		return err
+	}
+	if len(containers) != 1 {
+		return fmt.Errorf("Could not find container to kill")
+	}
+	return container.Kill(container.WithID(containers[0].ID), false, false)
+}
+
 // ListHandler handles list requests
 func ListHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	containers, err := List(token)
@@ -193,4 +211,19 @@ func ListHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	}
 
 	w.Write(s)
+}
+
+func KillHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
+	vars := mux.Vars(r)
+	name, ok := vars["name"]
+	if !ok {
+		http.Error(w, "No name given", 404)
+		return
+	}
+	err := Kill(name, token)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
 }

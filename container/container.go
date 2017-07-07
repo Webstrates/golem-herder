@@ -57,6 +57,27 @@ func List(client *docker.Client, matches func(container *docker.APIContainers) b
 	return matching, nil
 }
 
+// And returns a container matching function composed of and'ing its argument funcs
+func And(a func(container *docker.APIContainers) bool, b func(container *docker.APIContainers) bool) func(container *docker.APIContainers) bool {
+	return func(container *docker.APIContainers) bool {
+		return a(container) && b(container)
+	}
+}
+
+// Or returns a container matching function composed of or'ing its argument funcs
+func Or(a func(container *docker.APIContainers) bool, b func(container *docker.APIContainers) bool) func(container *docker.APIContainers) bool {
+	return func(container *docker.APIContainers) bool {
+		return a(container) || b(container)
+	}
+}
+
+// WithID returns a func to match a containers ID (for use with e.g. List)
+func WithID(id string) func(container *docker.APIContainers) bool {
+	return func(container *docker.APIContainers) bool {
+		return container.ID == id
+	}
+}
+
 // WithName returns a func to match a containers name (for use with e.g. List)
 func WithName(name string) func(container *docker.APIContainers) bool {
 	return func(container *docker.APIContainers) bool {
@@ -80,7 +101,7 @@ func WithLabel(label, value string) func(container *docker.APIContainers) bool {
 }
 
 // Kill the container with the given name and optionally remove mounted volumes.
-func Kill(name string, removeContainer, destroyData bool) error {
+func Kill(matcher func(container *docker.APIContainers) bool, removeContainer, destroyData bool) error {
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
@@ -88,7 +109,7 @@ func Kill(name string, removeContainer, destroyData bool) error {
 		return err
 	}
 
-	containers, err := List(client, WithName(name))
+	containers, err := List(client, matcher)
 	if err != nil {
 		log.WithError(err).Warn("Error listing containers")
 		return err
