@@ -5,7 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
+	"net/http"
+	"net/url"
+	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/viper"
@@ -98,6 +104,58 @@ func WithLabel(label, value string) func(container *docker.APIContainers) bool {
 		}
 		return false
 	}
+}
+
+// LoadFiles will load the given files into the dir for container usage
+func LoadFiles(dir string, files map[string][]byte) error {
+
+	var wg sync.WaitGroup
+
+	// write stuff to tmp dir
+	for name, content := range files {
+		// check if content is something we need to fetch
+		if url, err := url.Parse(string(content)); err == nil && strings.HasPrefix(string(content), "http") {
+			wg.Add(1)
+			go func(name string) {
+				defer wg.Done()
+				request, err := http.NewRequest("GET", url.String(), nil)
+				if err != nil {
+					log.WithError(err).WithField("url", url.String()).Warn("Could not create request")
+				}
+				// we need to add basic auth for webstrates assets
+				if url.Hostname() == "webstrates.cs.au.dk" || url.Hostname() == "hiraku.cs.au.dk" {
+					request.SetBasicAuth("web", "strate")
+				}
+				response, err := http.DefaultClient.Do(request)
+				if err != nil {
+					log.WithError(err).WithField("file", name).WithField("url", url.String()).Warn("Could not GET content to store in container")
+				}
+				defer response.Body.Close()
+				fetchedContent, err := ioutil.ReadAll(response.Body)
+				if err != nil {
+					log.WithError(err).WithField("url", url.String()).Warn("Error getting body")
+				}
+				// write content of url to file
+				log.WithField("file", name).Info("Writing fetched content to tmp dir")
+				err = ioutil.WriteFile(filepath.Join(dir, name), fetchedContent, 0644)
+				if err != nil {
+					log.WithError(err).WithField("file", name).Warn("Could not write file to tmp dir")
+				}
+			}(name)
+		} else {
+			// default case, something not an url
+			log.WithField("file", name).Info("Writing provided content to tmp dir")
+			err := ioutil.WriteFile(filepath.Join(dir, name), content, 0644)
+			if err != nil {
+				log.WithError(err).WithField("file", name).Warn("Could not write file to tmp dir")
+				return err
+			}
+		}
+	}
+
+	// Wait for all async tasks to complete
+	wg.Wait()
+	return nil
 }
 
 // Kill the container with the given name and optionally remove mounted volumes.
