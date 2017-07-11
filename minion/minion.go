@@ -167,7 +167,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request) {
 
 	files := map[string][]byte{}
 	for key, values := range r.Form {
-		if key != "env" && len(values) > 0 {
+		if key != "env" && key != "output" && len(values) > 0 {
 			files[key] = []byte(values[0])
 		}
 	}

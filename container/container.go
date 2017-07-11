@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -296,7 +297,7 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 // RunDaemonized will pull, create and start the container piping stdout and stderr to the given channels.
 // This function is meant to run longlived, persistent processes.
 // A directory (/<name>) will be mounted in the container in which data which must be persisted between sessions can be kept.
-func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[string]string, restart bool, stdout, stderr chan<- []byte, done chan<- bool) (*docker.Container, error) {
+func RunDaemonized(name, repository, tag string, ports map[int]int, files map[string][]byte, labels map[string]string, restart bool, stdout, stderr chan<- []byte, done chan<- bool) (*docker.Container, error) {
 
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
@@ -304,9 +305,14 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, labels map[s
 		return nil, err
 	}
 
+	hostdir := path.Join(viper.GetString("mounts"), name)
 	// Construct mounts
 	mounts := map[string]string{
-		fmt.Sprintf("%v/%v", viper.GetString("mounts"), name): fmt.Sprintf("/%v", name),
+		hostdir: fmt.Sprintf("/%v", name),
+	}
+
+	if err := LoadFiles(hostdir, files); err != nil {
+		return nil, err
 	}
 
 	c, err := run(client, name, repository, tag, ports, mounts, labels, restart)

@@ -19,6 +19,7 @@ type Options struct {
 	Meter   *metering.Meter
 	Restart bool
 	Ports   []int
+	Files   map[string][]byte
 	StdOut  chan []byte
 	StdErr  chan []byte
 	Done    chan bool
@@ -41,7 +42,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 		return nil, fmt.Errorf("Could not read from token claims")
 	}
 
-	// TODO change this if you want to e.g. restrict to one container of each kind
+	// Change the unique name generation if you want to e.g. restrict to one container of each kind
 	uname := fmt.Sprintf("%s-%v", name, claims["jti"])
 
 	// Get random outside ports
@@ -61,7 +62,7 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 	}
 
 	done := make(chan bool, 5) // does not need to be synchronized
-	c, err := container.RunDaemonized(uname, image, "latest", ports, labels, options.Restart, options.StdOut, options.StdErr, done)
+	c, err := container.RunDaemonized(uname, image, "latest", ports, options.Files, labels, options.Restart, options.StdOut, options.StdErr, done)
 	if err != nil {
 		return nil, err
 	}
@@ -107,10 +108,19 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	name := r.FormValue("name")
 	image := r.FormValue("image")
 	ps := r.FormValue("ports")
+
 	var ports []int
 	if err := json.Unmarshal([]byte(ps), &ports); err != nil {
 		http.Error(w, "Could not unmarshal ports - "+err.Error(), 400)
 		return
+	}
+
+	// Consider rest of form values as files
+	files := map[string][]byte{}
+	for key, values := range r.Form {
+		if key != "name" && key != "image" && name != "ports" && len(values) > 0 {
+			files[key] = []byte(values[0])
+		}
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
@@ -160,6 +170,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 		Meter:   m,
 		Restart: true,
 		Ports:   ports,
+		Files:   files,
 		StdOut:  nil,
 		StdErr:  nil,
 		Done:    done,
