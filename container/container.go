@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -306,6 +307,12 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, files map[st
 	}
 
 	hostdir := path.Join(viper.GetString("mounts"), name)
+
+	// Construct dir if not exists
+	if err := os.MkdirAll(hostdir, 0777); err != nil {
+		return nil, err
+	}
+
 	// Construct mounts
 	mounts := map[string]string{
 		hostdir: fmt.Sprintf("/%v", name),

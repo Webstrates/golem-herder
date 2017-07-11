@@ -118,7 +118,7 @@ func SpawnHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 	// Consider rest of form values as files
 	files := map[string][]byte{}
 	for key, values := range r.Form {
-		if key != "name" && key != "image" && name != "ports" && len(values) > 0 {
+		if key != "name" && key != "image" && key != "ports" && key != "token" && len(values) > 0 {
 			files[key] = []byte(values[0])
 		}
 	}
@@ -199,7 +199,7 @@ func Kill(name string, wipe bool, token *jwt.Token) error {
 	if !ok {
 		return fmt.Errorf("Could extract claims from token")
 	}
-	subject := claims["subject"].(string)
+	subject := claims["sub"].(string)
 	containers, err := container.List(nil, container.And(container.WithName(name), container.WithLabel("subject", subject)))
 	if err != nil {
 		return err
