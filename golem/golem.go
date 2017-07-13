@@ -114,7 +114,7 @@ func Kill(webstrateID string) error {
 
 	golems, err := container.List(client, func(c *docker.APIContainers) bool {
 		return strings.HasPrefix(c.Image, "webstrates/golem") && container.WithName(getName(webstrateID))(c)
-	})
+	}, false)
 
 	if len(golems) != 1 {
 		return fmt.Errorf("Unexpected amount of golems - %d", len(golems))
@@ -179,5 +179,5 @@ func List() ([]docker.APIContainers, error) {
 
 	return container.List(client, func(container *docker.APIContainers) bool {
 		return strings.HasPrefix(container.Image, "webstrates/golem")
-	})
+	}, false)
 }

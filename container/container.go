@@ -38,7 +38,7 @@ func GetAvailableHostPort() int {
 }
 
 // List containers matching the given predicate.
-func List(client *docker.Client, matches func(container *docker.APIContainers) bool) ([]docker.APIContainers, error) {
+func List(client *docker.Client, matches func(container *docker.APIContainers) bool, all bool) ([]docker.APIContainers, error) {
 
 	// Create client if it is not given
 	if client == nil {
@@ -50,7 +50,7 @@ func List(client *docker.Client, matches func(container *docker.APIContainers) b
 		client = c
 	}
 
-	containers, err := client.ListContainers(docker.ListContainersOptions{All: false})
+	containers, err := client.ListContainers(docker.ListContainersOptions{All: all})
 	if err != nil {
 		log.WithError(err).Error("Error listing containers")
 		return nil, err
@@ -169,7 +169,7 @@ func Kill(matcher func(container *docker.APIContainers) bool, removeContainer, d
 		return err
 	}
 
-	containers, err := List(client, matcher)
+	containers, err := List(client, matcher, false)
 	if err != nil {
 		log.WithError(err).Warn("Error listing containers")
 		return err
@@ -259,12 +259,13 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 	)
 	var containerID string
 	if err != nil {
-		log.WithError(err).Error("Error creating container")
+		log.WithError(err).WithField("restart", restart).Error("Error creating container")
 		if !restart {
 			return nil, err
 		}
 		// try finding container by name
-		containers, err := List(client, WithName(name))
+		log.WithField("name", name).Info("Looking for container")
+		containers, err := List(client, WithName(name), true)
 		if err != nil {
 			return nil, err
 		}

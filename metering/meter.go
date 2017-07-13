@@ -42,22 +42,25 @@ func NewMeter(id string, token string, expiration int, credits int) (*Meter, err
 			return err
 		}
 
-		// Add token to bucket
-		tokens.Put([]byte(token), []byte(strconv.Itoa(expiration)))
-
-		// Add credits to bucket
-		c := b.Get([]byte("Credits"))
-		if c != nil {
-			balance, err := strconv.Atoi(string(c))
-			if err != nil {
-				return err
+		// Check if token hasn't already been used
+		if t := tokens.Get([]byte(token)); t == nil {
+			// Add token to bucket
+			tokens.Put([]byte(token), []byte(strconv.Itoa(expiration)))
+			// Add credits to bucket
+			c := b.Get([]byte("Credits"))
+			if c != nil {
+				balance, err := strconv.Atoi(string(c))
+				if err != nil {
+					return err
+				}
+				log.WithField("balance", balance).WithField("credits", credits).Info("Inserting new credits")
+				b.Put([]byte("Credits"), []byte(strconv.Itoa(balance+credits)))
+			} else {
+				log.WithField("credits", credits).Info("Inserting new credits")
+				b.Put([]byte("Credits"), []byte(strconv.Itoa(credits)))
 			}
-			log.WithField("balance", balance).WithField("credits", credits).Info("Inserting new credits")
-			b.Put([]byte("Credits"), []byte(strconv.Itoa(balance+credits)))
-		} else {
-			log.WithField("credits", credits).Info("Inserting new credits")
-			b.Put([]byte("Credits"), []byte(strconv.Itoa(credits)))
 		}
+
 		return nil
 	})
 	if err != nil {

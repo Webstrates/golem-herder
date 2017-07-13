@@ -99,7 +99,7 @@ func List(token *jwt.Token) ([]docker.APIContainers, error) {
 	if !ok {
 		return nil, fmt.Errorf("Could extract claims from token")
 	}
-	return container.List(nil, container.WithLabel("subject", claims["sub"].(string)))
+	return container.List(nil, container.WithLabel("subject", claims["sub"].(string)), true)
 }
 
 // SpawnHandler handles spawn requests
@@ -200,7 +200,7 @@ func Kill(name string, wipe bool, token *jwt.Token) error {
 		return fmt.Errorf("Could extract claims from token")
 	}
 	subject := claims["sub"].(string)
-	containers, err := container.List(nil, container.And(container.WithName(name), container.WithLabel("subject", subject)))
+	containers, err := container.List(nil, container.And(container.WithName(name), container.WithLabel("subject", subject)), false)
 	if err != nil {
 		return err
 	}
