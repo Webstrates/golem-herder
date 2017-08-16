@@ -46,4 +46,4 @@ A **daemon** is conceptually the same as a *controlled minion*, however a daemon
 
  * **Kill a daemon** by sending a GET request to`http(s)://<herder-location>/daemon/v1/kill/<name-of-daemon>`
 
-For all commands you need to supply a token (JWT). This can be done in the headerin the format `Authorization: bearer <token>` or as a query param e.g. `...?token=<token>`.
+For all commands you need to supply a token ([JWT](https://jwt.io)). This can be done in the headerin the format `Authorization: bearer <token>` or as a query param e.g. `...?token=<token>`.
