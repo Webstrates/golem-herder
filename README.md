@@ -56,8 +56,8 @@ For all commands you need to supply a token ([JWT](https://jwt.io)). This can be
 
 ## Installation
 
-If you want a local golem-herder installed you can do this by downloading a version matching your os/architecture at the [releases](releases) page. See the internal doc by running:
+If you want a local golem-herder installed you can do this by downloading a version matching your os/architecture at the [releases](https://github.com/Webstrates/golem-herder/releases) page. See the internal doc by e.g. running:
 
 ```sh
-> golem-herder_<os>_<arch> -h
+> golem-herder_linux_amd64 -h
 ```
