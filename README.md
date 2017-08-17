@@ -6,6 +6,9 @@ The golem-herder is a process which manages golems, minions and daemons. A commo
 
   * [Concepts](#concepts)
     * [Golems](#golems)
+    * [Minions](#minions)
+    * [Daemons](#daemons)
+  * [Installation](#installation)
 
 ## Concepts
 
@@ -50,3 +53,11 @@ A **daemon** is conceptually the same as a *controlled minion*, however a daemon
  * **Kill a daemon** by sending a GET request to`http(s)://<herder-location>/daemon/v1/kill/<name-of-daemon>`
 
 For all commands you need to supply a token ([JWT](https://jwt.io)). This can be done in the header in the format `Authorization: bearer <token>` or as a query param e.g. `...?token=<token>`.
+
+## Installation
+
+If you want a local golem-herder installed you can do this by downloading a version matching your os/architecture at the [releases](releases) page. See the internal doc by running:
+
+```sh
+> golem-herder_<os>_<arch> -h
+```
