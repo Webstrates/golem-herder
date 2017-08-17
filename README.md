@@ -4,8 +4,8 @@
 
 The golem-herder is a process which manages golems, minions and daemons. A common theme here is that all of them are external processes which are slaved to a webstrate in some manner.
 
- * [Concepts](#concepts)
-  * [Golems](#golems)
+  * [Concepts](#concepts)
+    * [Golems](#golems)
 
 ## Concepts
 
