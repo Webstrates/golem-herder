@@ -49,11 +49,8 @@
   } else {
     // You're a golem, most likely.
     // Bootstrap yourself. Rise! 
-    webstrate.on('loaded', function() {
-      window.setTimeout(function() {
-        new Function(document.querySelector(".golem,#emet").textContent)();
-      }, 5000);
-    });
-
+    window.setTimeout(function() {
+      new Function(document.querySelector(".golem,#emet").textContent)();
+    }, 5000);
   }
 })();
