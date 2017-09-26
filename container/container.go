@@ -317,6 +317,7 @@ func RunDaemonized(name, repository, tag string, ports map[int]int, files map[st
 	// Construct mounts
 	mounts := map[string]string{
 		hostdir: fmt.Sprintf("/%v", name),
+		hostdir: "/minion", // also put file in minion directory for minion compat
 	}
 
 	if err := LoadFiles(hostdir, files); err != nil {
@@ -438,4 +439,75 @@ func RunLambda(ctx context.Context, name, repository, tag string, mounts map[str
 	log.WithField("stdout", stdout.String()).WithField("stderr", stderr.String()).Info("Run done")
 
 	return stdout.Bytes(), stderr.Bytes(), nil
+}
+
+// Attach to a container
+func Attach(c docker.APIContainers, stdout, stderr chan<- []byte, stdin <-chan []byte) error {
+
+	client, err := docker.NewClientFromEnv()
+	if err != nil {
+		log.WithError(err).Error("Could not create docker client")
+		return err
+	}
+
+	// Use a pipe to run stdout and stderr to channels
+	stdoutr, stdoutw := io.Pipe()
+	stderrr, stderrw := io.Pipe()
+	stdinr, stdinw := io.Pipe()
+
+	cw, err := client.AttachToContainerNonBlocking(docker.AttachToContainerOptions{
+		Container:    c.ID,
+		Logs:         true,
+		Stream:       true,
+		Stdout:       true,
+		Stderr:       true,
+		Stdin:        true,
+		OutputStream: stdoutw,
+		ErrorStream:  stderrw,
+		InputStream:  stdinr})
+	if err != nil {
+		log.WithError(err).Warn("Could not attach")
+		return err
+	}
+
+	// stdout goes to channel
+	go func(r io.Reader, out chan<- []byte, c io.Closer) {
+		for {
+			data := make([]byte, 512)
+			_, err := r.Read(data)
+			out <- data
+			if err != nil {
+				// stop looking for stdout
+				c.Close()
+				return
+			}
+		}
+	}(stdoutr, stdout, cw)
+
+	// stderr goes to channel
+	go func(r io.Reader, out chan<- []byte, c io.Closer) {
+		for {
+			data := make([]byte, 512)
+			_, err := r.Read(data)
+			out <- data
+			if err != nil {
+				// stop looking for stderr
+				c.Close()
+				return
+			}
+		}
+	}(stderrr, stderr, cw)
+
+	// stdin goes from channel
+	go func(w io.Writer, in <-chan []byte, c io.Closer) {
+		for line := range in {
+			_, err := w.Write(line)
+			if err != nil {
+				// stop looking for stdin
+				c.Close()
+				return
+			}
+		}
+	}(stdinw, stdin, cw)
+	return nil
 }

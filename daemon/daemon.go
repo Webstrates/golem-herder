@@ -12,6 +12,16 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
+)
+
+var (
+	// upgrader upgrades HTTP 1.1 connection to WebSocket
+	upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     func(*http.Request) bool { return true }, // allow all origins
+	}
 )
 
 // Options contains configuration options for the daemon spawn.
@@ -93,11 +103,81 @@ func Spawn(token *jwt.Token, name, image string, options Options) (*Info, error)
 	return &Info{Address: c.NetworkSettings.Networks["bridge"].IPAddress, Name: uname, Ports: invertedPorts}, nil
 }
 
+// Attach will attach to an already running daemon and forward stdout/err and allow for stdin
+func Attach(token *jwt.Token, name string, in <-chan []byte, out chan<- []byte) error {
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return fmt.Errorf("Could not extract claims from token")
+	}
+	cs, err := container.List(nil, container.WithLabel("subject", claims["sub"].(string)), true)
+	if err != nil {
+		return err
+	}
+	if len(cs) == 0 {
+		return fmt.Errorf("Could not find container with name: %s", name)
+	}
+	c := cs[0]
+
+	// io, io, io
+	return container.Attach(c, out, out, in)
+}
+
+// AttachHandler handles attach requests
+func AttachHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
+	vars := mux.Vars(r)
+	name, ok := vars["name"]
+	if !ok {
+		log.Warn("No name given")
+		http.Error(w, "No name given", 404)
+		return
+	}
+	log.WithField("name", name).Info("Attaching")
+	// Upgrade HTTP connection to WebSocket
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.WithError(err).Panic("Error upgrading connection")
+		return
+	}
+
+	// Connect websocket and channel
+	in := make(chan []byte)
+	out := make(chan []byte)
+
+	// -- from websocket -> stdin
+	go func() {
+		for {
+			_, data, err := conn.ReadMessage()
+			if err != nil {
+				log.WithError(err).WithField("container", name).Warn("Error reading from stdin-websocket")
+				close(in)
+				return
+			}
+			in <- data
+		}
+	}()
+
+	// -- from stdout/err -> websocket
+	go func() {
+		for line := range out {
+			err := conn.WriteMessage(websocket.TextMessage, line)
+			if err != nil {
+				log.WithError(err).WithField("container", name).Warn("Error writing to stdout-websocket")
+				return
+			}
+		}
+	}()
+
+	if err := Attach(token, name, in, out); err != nil {
+		log.WithError(err).Warn("Could not attach to %s", name)
+		conn.Close()
+	}
+}
+
 // List the daemons running on this token.
 func List(token *jwt.Token) ([]docker.APIContainers, error) {
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return nil, fmt.Errorf("Could extract claims from token")
+		return nil, fmt.Errorf("Could not extract claims from token")
 	}
 	return container.List(nil, container.WithLabel("subject", claims["sub"].(string)), true)
 }

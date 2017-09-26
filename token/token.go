@@ -130,14 +130,19 @@ func ValidatedHandler(validator Validator, handler func(w http.ResponseWriter, r
 		token, ok := tokenFromHeader(r)
 		if !ok {
 			token, _ = tokenFromQueryParam(r)
+			log.Info("Got token from query")
+		} else {
+			log.Info("Got token from header")
 		}
 
 		t, err := validator.Validate(token)
 		if err != nil {
+			log.WithError(err).Warn("Unauthorized")
 			http.Error(w, err.Error(), 401 /* Unauthorized */)
 			return
 		}
 		if t == nil {
+			log.Warn("Token was invalid")
 			http.Error(w, "Token was invalid", 401)
 			return
 		}
