@@ -67,5 +67,5 @@ If you want a local golem-herder installed you can do this by downloading a vers
 You can create a self-signed key-pair for testing with:
 
 ```sh
-> openssl req -new -x509 -sha256 -key key.pem -out cert.pem -days 3650
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -nodes -days 365 -subj /CN=localhost
 ```
