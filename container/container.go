@@ -250,6 +250,9 @@ func run(client *docker.Client, name, repository, tag string, ports map[int]int,
 				Mounts:       ms,
 				AttachStdout: true,
 				AttachStderr: true,
+				AttachStdin:  true,
+				OpenStdin:    true,
+				Tty:          true,
 			},
 			HostConfig: &docker.HostConfig{
 				PortBindings: portBindings,
@@ -462,6 +465,7 @@ func Attach(c docker.APIContainers, stdout, stderr chan<- []byte, stdin <-chan [
 		Stdout:       true,
 		Stderr:       true,
 		Stdin:        true,
+		RawTerminal:  true,
 		OutputStream: stdoutw,
 		ErrorStream:  stderrw,
 		InputStream:  stdinr})
