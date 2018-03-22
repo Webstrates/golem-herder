@@ -3,10 +3,10 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/Webstrates/golem-herder/daemon"
 	"github.com/Webstrates/golem-herder/herder"
 	"github.com/Webstrates/golem-herder/minion"
@@ -25,7 +25,7 @@ var (
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Start a remote administration interface",
+	Short: "Start the herder!",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		// Validation
@@ -100,6 +100,11 @@ func init() {
 
 	serveCmd.Flags().IntVarP(&port, "port", "p", 81, "Which port to listen on")
 	serveCmd.Flags().StringVarP(&mountdir, "mounts", "m", "/mounts", "Base-directory for mounts")
+	serveCmd.Flags().Bool("proxy", true, "Whether to connect to a proxy. If you set this flag you should name the container 'webstrates' or whatever string you pass in the 'webstrates' flag")
+	serveCmd.Flags().String("url", "emet.cc.au.dk", "The url which this herder can be accessed at. This url should be reachable from the containers/golems running on this machine or - if using the proxy - the proxy")
+	serveCmd.Flags().String("webstrates", "webstrates", "The location of the webstrates server - if using the proxy this should be left to the default value (webstrates)")
 
-	viper.BindPFlag("mounts", serveCmd.Flag("mounts"))
+	if err := viper.BindPFlags(serveCmd.Flags()); err != nil {
+		log.WithError(err).Warn("Could not bind flags.")
+	}
 }

@@ -39,7 +39,6 @@ func init() {
 	// when this action is called directly.
 	RootCmd.PersistentFlags().StringVar(&privKey, "privkey", "key.pem", "The path to the private key to use for token generation")
 	RootCmd.PersistentFlags().StringVar(&pubKey, "pubkey", "cert.pem", "The path to the public key to use for token validation")
-	//RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
 	viper.BindPFlags(RootCmd.PersistentFlags())
 }

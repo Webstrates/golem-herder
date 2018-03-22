@@ -9,6 +9,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/Webstrates/golem-herder/container"
+	"github.com/spf13/viper"
 
 	docker "github.com/fsouza/go-dockerclient"
 )
@@ -53,6 +54,12 @@ func Spawn(webstrateID string) (string, error) {
 		return "", err
 	}
 
+	// Links
+	links := []string{}
+	if viper.GetBool("proxy") {
+		links = []string{viper.GetString("webstrates")}
+	}
+
 	log.WithFields(log.Fields{"webstrateid": webstrateID}).Info("Creating container")
 	container, err := client.CreateContainer(
 		docker.CreateContainerOptions{
@@ -70,11 +77,11 @@ func Spawn(webstrateID string) (string, error) {
 					"--disable-gpu",
 					"--remote-debugging-address=0.0.0.0",
 					"--remote-debugging-port=9222",
-					fmt.Sprintf("http://webstrates/%s", webstrateID),
+					fmt.Sprintf("http://%s/%s", viper.GetString("webstrates"), webstrateID),
 				},
 			},
 			HostConfig: &docker.HostConfig{
-				Links: []string{"webstrates"},
+				Links: links,
 				PortBindings: map[docker.Port][]docker.PortBinding{
 					"9222/tcp": []docker.PortBinding{{
 						HostIP:   "0.0.0.0",

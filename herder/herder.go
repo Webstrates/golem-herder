@@ -8,6 +8,7 @@ import (
 
 	"github.com/Webstrates/golem-herder/golem"
 	"github.com/gorilla/mux"
+	"github.com/spf13/viper"
 )
 
 // TemplateContext is the context which gets used when constructing the emet js init file
@@ -24,7 +25,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
-	context := TemplateContext{BaseURL: "emet.cc.au.dk"}
+	context := TemplateContext{BaseURL: viper.GetString("url")}
 
 	err = tmpl.Execute(w, context)
 }
