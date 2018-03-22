@@ -55,7 +55,7 @@ func Spawn(webstrateID string) (string, error) {
 	}
 
 	// Links
-	links := []string{}
+	var links []string
 	if viper.GetBool("proxy") {
 		links = []string{viper.GetString("webstrates")}
 	}

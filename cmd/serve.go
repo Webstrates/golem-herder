@@ -100,7 +100,7 @@ func init() {
 
 	serveCmd.Flags().IntVarP(&port, "port", "p", 81, "Which port to listen on")
 	serveCmd.Flags().StringVarP(&mountdir, "mounts", "m", "/mounts", "Base-directory for mounts")
-	serveCmd.Flags().Bool("proxy", true, "Whether to connect to a proxy. If you set this flag you should name the container 'webstrates' or whatever string you pass in the 'webstrates' flag")
+	serveCmd.Flags().Bool("proxy", false, "Whether to connect to a proxy. If you set this flag you should name the container 'webstrates' or whatever string you pass in the 'webstrates' flag")
 	serveCmd.Flags().String("url", "emet.cc.au.dk", "The url which this herder can be accessed at. This url should be reachable from the containers/golems running on this machine or - if using the proxy - the proxy")
 	serveCmd.Flags().String("webstrates", "webstrates", "The location of the webstrates server - if using the proxy this should be left to the default value (webstrates)")
 
