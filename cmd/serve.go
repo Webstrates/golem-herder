@@ -88,21 +88,13 @@ var serveCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(serveCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// serveCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
+	// Flags for serveCmd
 	serveCmd.Flags().IntVarP(&port, "port", "p", 81, "Which port to listen on")
 	serveCmd.Flags().StringVarP(&mountdir, "mounts", "m", "/mounts", "Base-directory for mounts")
 	serveCmd.Flags().Bool("proxy", false, "Whether to connect to a proxy. If you set this flag you should name the container 'webstrates' or whatever string you pass in the 'webstrates' flag")
 	serveCmd.Flags().String("url", "emet.cc.au.dk", "The url which this herder can be accessed at. This url should be reachable from the containers/golems running on this machine or - if using the proxy - the proxy")
 	serveCmd.Flags().String("webstrates", "webstrates", "The location of the webstrates server - if using the proxy this should be left to the default value (webstrates)")
+	serveCmd.Flags().String("golem", "latest", "The version (tag) of the golem image (https://hub.docker.com/r/webstrates/golem/tags/) to use.")
 
 	if err := viper.BindPFlags(serveCmd.Flags()); err != nil {
 		log.WithError(err).Warn("Could not bind flags.")

@@ -34,7 +34,7 @@ func Spawn(webstrateID string) (string, error) {
 
 	err = client.PullImage(docker.PullImageOptions{
 		Repository: "webstrates/golem",
-		Tag:        "latest",
+		Tag:        viper.GetString("golem"),
 	}, docker.AuthConfiguration{})
 	if err != nil {
 		return "", err
