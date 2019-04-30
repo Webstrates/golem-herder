@@ -6,7 +6,7 @@ import (
 	"net/http/httputil"
 	"regexp"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // NewGolemReverseProxy creates and returns a proxy for running golem

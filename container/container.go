@@ -18,8 +18,8 @@ import (
 
 	"github.com/spf13/viper"
 
-	log "github.com/Sirupsen/logrus"
 	docker "github.com/fsouza/go-dockerclient"
+	log "github.com/sirupsen/logrus"
 )
 
 // GetAvailableHostPort returns an available (and random) port on the host machine
@@ -432,12 +432,16 @@ func RunLambda(ctx context.Context, name, repository, tag string, mounts map[str
 	// Use a buffer to capture output
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	client.Logs(docker.LogsOptions{
+	err = client.Logs(docker.LogsOptions{
 		Stdout:       true,
 		Container:    container.ID,
+		RawTerminal:  true,
 		OutputStream: &stdout,
 		ErrorStream:  &stderr,
 	})
+	if err != nil {
+		log.WithError(err).Warn("Error getting container logs")
+	}
 
 	log.WithField("stdout", stdout.String()).WithField("stderr", stderr.String()).Info("Run done")
 

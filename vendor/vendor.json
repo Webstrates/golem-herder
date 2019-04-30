@@ -24,12 +24,6 @@
 			"revisionTime": "2019-04-29T19:25:21Z"
 		},
 		{
-			"checksumSHA1": "QZUvloxC1gbLNb1HDvvKlqz3oEs=",
-			"path": "github.com/Sirupsen/logrus",
-			"revision": "9b3cdde74fbe9443d704467498a7dcb61a79de9b",
-			"revisionTime": "2019-04-03T09:10:19Z"
-		},
-		{
 			"checksumSHA1": "20Pind5XCrfZL/F0oibWfd9gotA=",
 			"path": "github.com/boltdb/bolt",
 			"revision": "fd01fc79c553a8e99d512a07e8e0c63d4a3ccfc5",
@@ -416,11 +410,10 @@
 			"revisionTime": "2019-04-29T19:26:42Z"
 		},
 		{
-			"checksumSHA1": "Tx+N13P+lGKgx5LXb2FcNkezzvU=",
-			"origin": "github.com/docker/docker/vendor/github.com/sirupsen/logrus",
+			"checksumSHA1": "mB5o9lbse489BCvZGbRkarc2Xp0=",
 			"path": "github.com/sirupsen/logrus",
-			"revision": "9a2c26374393e0f46e8f2b1e49d2dcf66b78dbb4",
-			"revisionTime": "2019-04-29T19:25:21Z"
+			"revision": "9b3cdde74fbe9443d704467498a7dcb61a79de9b",
+			"revisionTime": "2019-04-03T09:10:19Z"
 		},
 		{
 			"checksumSHA1": "2d0rR/VhqllUdrcH6kwHHrhqJ2E=",

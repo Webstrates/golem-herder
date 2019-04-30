@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/Webstrates/golem-herder/daemon"
 	"github.com/Webstrates/golem-herder/herder"
 	"github.com/Webstrates/golem-herder/minion"
