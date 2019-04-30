@@ -30,7 +30,7 @@
 //   - Non configured, you don't need set a unique machine and/or data center id
 //   - K-ordered
 //   - Embedded time with 1 second precision
-//   - Unicity guaranted for 16,777,216 (24 bits) unique ids per second and per host/process
+//   - Unicity guaranteed for 16,777,216 (24 bits) unique ids per second and per host/process
 //
 // Best used with xlog's RequestIDHandler (https://godoc.org/github.com/rs/xlog#RequestIDHandler).
 //
@@ -42,15 +42,20 @@
 package xid
 
 import (
+	"bytes"
 	"crypto/md5"
 	"crypto/rand"
 	"database/sql/driver"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/crc32"
+	"io/ioutil"
 	"os"
+	"sort"
 	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 // Code inspired from mgo/bson ObjectId
@@ -60,7 +65,6 @@ type ID [rawLen]byte
 
 const (
 	encodedLen = 20 // string encoded len
-	decodedLen = 15 // len after base32 decoding with the padded data
 	rawLen     = 12 // binary raw len
 
 	// encoding stores a custom version of the base32 encoding with lower case
@@ -68,23 +72,27 @@ const (
 	encoding = "0123456789abcdefghijklmnopqrstuv"
 )
 
-// ErrInvalidID is returned when trying to unmarshal an invalid ID
-var ErrInvalidID = errors.New("xid: invalid ID")
+var (
+	// ErrInvalidID is returned when trying to unmarshal an invalid ID
+	ErrInvalidID = errors.New("xid: invalid ID")
 
-// objectIDCounter is atomically incremented when generating a new ObjectId
-// using NewObjectId() function. It's used as a counter part of an id.
-// This id is initialized with a random value.
-var objectIDCounter = randInt()
+	// objectIDCounter is atomically incremented when generating a new ObjectId
+	// using NewObjectId() function. It's used as a counter part of an id.
+	// This id is initialized with a random value.
+	objectIDCounter = randInt()
 
-// machineId stores machine id generated once and used in subsequent calls
-// to NewObjectId function.
-var machineID = readMachineID()
+	// machineId stores machine id generated once and used in subsequent calls
+	// to NewObjectId function.
+	machineID = readMachineID()
 
-// pid stores the current process id
-var pid = os.Getpid()
+	// pid stores the current process id
+	pid = os.Getpid()
 
-// dec is the decoding map for base32 encoding
-var dec [256]byte
+	nilID ID
+
+	// dec is the decoding map for base32 encoding
+	dec [256]byte
+)
 
 func init() {
 	for i := 0; i < len(dec); i++ {
@@ -93,6 +101,14 @@ func init() {
 	for i := 0; i < len(encoding); i++ {
 		dec[encoding[i]] = byte(i)
 	}
+
+	// If /proc/self/cpuset exists and is not /, we can assume that we are in a
+	// form of container and use the content of cpuset xor-ed with the PID in
+	// order get a reasonable machine global unique PID.
+	b, err := ioutil.ReadFile("/proc/self/cpuset")
+	if err == nil && len(b) > 1 {
+		pid ^= int(crc32.ChecksumIEEE(b))
+	}
 }
 
 // readMachineId generates machine id and puts it into the machineId global
@@ -100,9 +116,13 @@ func init() {
 // a runtime error.
 func readMachineID() []byte {
 	id := make([]byte, 3)
-	if hostname, err := os.Hostname(); err == nil {
+	hid, err := readPlatformMachineID()
+	if err != nil || len(hid) == 0 {
+		hid, err = os.Hostname()
+	}
+	if err == nil && len(hid) != 0 {
 		hw := md5.New()
-		hw.Write([]byte(hostname))
+		hw.Write([]byte(hid))
 		copy(id, hw.Sum(nil))
 	} else {
 		// Fallback to rand number if machine id can't be gathered
@@ -122,11 +142,16 @@ func randInt() uint32 {
 	return uint32(b[0])<<16 | uint32(b[1])<<8 | uint32(b[2])
 }
 
-// New generates a globaly unique ID
+// New generates a globally unique ID
 func New() ID {
+	return NewWithTime(time.Now())
+}
+
+// NewWithTime generates a globally unique ID with the passed in time
+func NewWithTime(t time.Time) ID {
 	var id ID
 	// Timestamp, 4 bytes, big endian
-	binary.BigEndian.PutUint32(id[:], uint32(time.Now().Unix()))
+	binary.BigEndian.PutUint32(id[:], uint32(t.Unix()))
 	// Machine, first 3 bytes of md5(hostname)
 	id[4] = machineID[0]
 	id[5] = machineID[1]
@@ -153,7 +178,7 @@ func FromString(id string) (ID, error) {
 func (id ID) String() string {
 	text := make([]byte, encodedLen)
 	encode(text, id[:])
-	return string(text)
+	return *(*string)(unsafe.Pointer(&text))
 }
 
 // MarshalText implements encoding/text TextMarshaler interface
@@ -163,28 +188,42 @@ func (id ID) MarshalText() ([]byte, error) {
 	return text, nil
 }
 
+// MarshalJSON implements encoding/json Marshaler interface
+func (id ID) MarshalJSON() ([]byte, error) {
+	if id.IsNil() {
+		return []byte("null"), nil
+	}
+	text := make([]byte, encodedLen+2)
+	encode(text[1:encodedLen+1], id[:])
+	text[0], text[encodedLen+1] = '"', '"'
+	return text, nil
+}
+
 // encode by unrolling the stdlib base32 algorithm + removing all safe checks
 func encode(dst, id []byte) {
-	dst[0] = encoding[id[0]>>3]
-	dst[1] = encoding[(id[1]>>6)&0x1F|(id[0]<<2)&0x1F]
-	dst[2] = encoding[(id[1]>>1)&0x1F]
-	dst[3] = encoding[(id[2]>>4)&0x1F|(id[1]<<4)&0x1F]
-	dst[4] = encoding[id[3]>>7|(id[2]<<1)&0x1F]
-	dst[5] = encoding[(id[3]>>2)&0x1F]
-	dst[6] = encoding[id[4]>>5|(id[3]<<3)&0x1F]
-	dst[7] = encoding[id[4]&0x1F]
-	dst[8] = encoding[id[5]>>3]
-	dst[9] = encoding[(id[6]>>6)&0x1F|(id[5]<<2)&0x1F]
-	dst[10] = encoding[(id[6]>>1)&0x1F]
-	dst[11] = encoding[(id[7]>>4)&0x1F|(id[6]<<4)&0x1F]
-	dst[12] = encoding[id[8]>>7|(id[7]<<1)&0x1F]
-	dst[13] = encoding[(id[8]>>2)&0x1F]
-	dst[14] = encoding[(id[9]>>5)|(id[8]<<3)&0x1F]
-	dst[15] = encoding[id[9]&0x1F]
-	dst[16] = encoding[id[10]>>3]
-	dst[17] = encoding[(id[11]>>6)&0x1F|(id[10]<<2)&0x1F]
-	dst[18] = encoding[(id[11]>>1)&0x1F]
+	_ = dst[19]
+	_ = id[11]
+
 	dst[19] = encoding[(id[11]<<4)&0x1F]
+	dst[18] = encoding[(id[11]>>1)&0x1F]
+	dst[17] = encoding[(id[11]>>6)&0x1F|(id[10]<<2)&0x1F]
+	dst[16] = encoding[id[10]>>3]
+	dst[15] = encoding[id[9]&0x1F]
+	dst[14] = encoding[(id[9]>>5)|(id[8]<<3)&0x1F]
+	dst[13] = encoding[(id[8]>>2)&0x1F]
+	dst[12] = encoding[id[8]>>7|(id[7]<<1)&0x1F]
+	dst[11] = encoding[(id[7]>>4)&0x1F|(id[6]<<4)&0x1F]
+	dst[10] = encoding[(id[6]>>1)&0x1F]
+	dst[9] = encoding[(id[6]>>6)&0x1F|(id[5]<<2)&0x1F]
+	dst[8] = encoding[id[5]>>3]
+	dst[7] = encoding[id[4]&0x1F]
+	dst[6] = encoding[id[4]>>5|(id[3]<<3)&0x1F]
+	dst[5] = encoding[(id[3]>>2)&0x1F]
+	dst[4] = encoding[id[3]>>7|(id[2]<<1)&0x1F]
+	dst[3] = encoding[(id[2]>>4)&0x1F|(id[1]<<4)&0x1F]
+	dst[2] = encoding[(id[1]>>1)&0x1F]
+	dst[1] = encoding[(id[1]>>6)&0x1F|(id[0]<<2)&0x1F]
+	dst[0] = encoding[id[0]>>3]
 }
 
 // UnmarshalText implements encoding/text TextUnmarshaler interface
@@ -201,20 +240,33 @@ func (id *ID) UnmarshalText(text []byte) error {
 	return nil
 }
 
+// UnmarshalJSON implements encoding/json Unmarshaler interface
+func (id *ID) UnmarshalJSON(b []byte) error {
+	s := string(b)
+	if s == "null" {
+		*id = nilID
+		return nil
+	}
+	return id.UnmarshalText(b[1 : len(b)-1])
+}
+
 // decode by unrolling the stdlib base32 algorithm + removing all safe checks
 func decode(id *ID, src []byte) {
-	id[0] = dec[src[0]]<<3 | dec[src[1]]>>2
-	id[1] = dec[src[1]]<<6 | dec[src[2]]<<1 | dec[src[3]]>>4
-	id[2] = dec[src[3]]<<4 | dec[src[4]]>>1
-	id[3] = dec[src[4]]<<7 | dec[src[5]]<<2 | dec[src[6]]>>3
-	id[4] = dec[src[6]]<<5 | dec[src[7]]
-	id[5] = dec[src[8]]<<3 | dec[src[9]]>>2
-	id[6] = dec[src[9]]<<6 | dec[src[10]]<<1 | dec[src[11]]>>4
-	id[7] = dec[src[11]]<<4 | dec[src[12]]>>1
-	id[8] = dec[src[12]]<<7 | dec[src[13]]<<2 | dec[src[14]]>>3
-	id[9] = dec[src[14]]<<5 | dec[src[15]]
-	id[10] = dec[src[16]]<<3 | dec[src[17]]>>2
+	_ = src[19]
+	_ = id[11]
+
 	id[11] = dec[src[17]]<<6 | dec[src[18]]<<1 | dec[src[19]]>>4
+	id[10] = dec[src[16]]<<3 | dec[src[17]]>>2
+	id[9] = dec[src[14]]<<5 | dec[src[15]]
+	id[8] = dec[src[12]]<<7 | dec[src[13]]<<2 | dec[src[14]]>>3
+	id[7] = dec[src[11]]<<4 | dec[src[12]]>>1
+	id[6] = dec[src[9]]<<6 | dec[src[10]]<<1 | dec[src[11]]>>4
+	id[5] = dec[src[8]]<<3 | dec[src[9]]>>2
+	id[4] = dec[src[6]]<<5 | dec[src[7]]
+	id[3] = dec[src[4]]<<7 | dec[src[5]]<<2 | dec[src[6]]>>3
+	id[2] = dec[src[3]]<<4 | dec[src[4]]>>1
+	id[1] = dec[src[1]]<<6 | dec[src[2]]<<1 | dec[src[3]]>>4
+	id[0] = dec[src[0]]<<3 | dec[src[1]]>>2
 }
 
 // Time returns the timestamp part of the id.
@@ -247,6 +299,9 @@ func (id ID) Counter() int32 {
 
 // Value implements the driver.Valuer interface.
 func (id ID) Value() (driver.Value, error) {
+	if id.IsNil() {
+		return nil, nil
+	}
 	b, err := id.MarshalText()
 	return string(b), err
 }
@@ -258,7 +313,62 @@ func (id *ID) Scan(value interface{}) (err error) {
 		return id.UnmarshalText([]byte(val))
 	case []byte:
 		return id.UnmarshalText(val)
+	case nil:
+		*id = nilID
+		return nil
 	default:
 		return fmt.Errorf("xid: scanning unsupported type: %T", value)
 	}
+}
+
+// IsNil Returns true if this is a "nil" ID
+func (id ID) IsNil() bool {
+	return id == nilID
+}
+
+// NilID returns a zero value for `xid.ID`.
+func NilID() ID {
+	return nilID
+}
+
+// Bytes returns the byte array representation of `ID`
+func (id ID) Bytes() []byte {
+	return id[:]
+}
+
+// FromBytes convert the byte array representation of `ID` back to `ID`
+func FromBytes(b []byte) (ID, error) {
+	var id ID
+	if len(b) != rawLen {
+		return id, ErrInvalidID
+	}
+	copy(id[:], b)
+	return id, nil
+}
+
+// Compare returns an integer comparing two IDs. It behaves just like `bytes.Compare`.
+// The result will be 0 if two IDs are identical, -1 if current id is less than the other one,
+// and 1 if current id is greater than the other.
+func (id ID) Compare(other ID) int {
+	return bytes.Compare(id[:], other[:])
+}
+
+type sorter []ID
+
+func (s sorter) Len() int {
+	return len(s)
+}
+
+func (s sorter) Less(i, j int) bool {
+	return s[i].Compare(s[j]) < 0
+}
+
+func (s sorter) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// Sort sorts an array of IDs inplace.
+// It works by wrapping `[]ID` and use `sort.Sort`.
+func Sort(ids []ID) {
+	sort.Sort(sorter(ids))
 }
