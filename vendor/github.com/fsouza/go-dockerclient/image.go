@@ -5,7 +5,7 @@
 package docker
 
 import (
-	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -16,8 +16,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 // APIImages represent an image returned in the ListImages call.
@@ -446,15 +444,10 @@ func (c *Client) ImportImage(opts ImportImageOptions) error {
 // For more details about the Docker building process, see
 // https://goo.gl/4nYHwV.
 type BuildImageOptions struct {
+	Context             context.Context
 	Name                string             `qs:"t"`
 	Dockerfile          string             `qs:"dockerfile"`
-	NoCache             bool               `qs:"nocache"`
 	CacheFrom           []string           `qs:"-"`
-	SuppressOutput      bool               `qs:"q"`
-	Pull                bool               `qs:"pull"`
-	RmTmpContainer      bool               `qs:"rm"`
-	ForceRmTmpContainer bool               `qs:"forcerm"`
-	RawJSONStream       bool               `qs:"-"`
 	Memory              int64              `qs:"memory"`
 	Memswap             int64              `qs:"memswap"`
 	CPUShares           int64              `qs:"cpushares"`
@@ -473,7 +466,14 @@ type BuildImageOptions struct {
 	NetworkMode         string             `qs:"networkmode"`
 	InactivityTimeout   time.Duration      `qs:"-"`
 	CgroupParent        string             `qs:"cgroupparent"`
-	Context             context.Context
+	SecurityOpt         []string           `qs:"securityopt"`
+	Target              string             `gs:"target"`
+	NoCache             bool               `qs:"nocache"`
+	SuppressOutput      bool               `qs:"q"`
+	Pull                bool               `qs:"pull"`
+	RmTmpContainer      bool               `qs:"rm"`
+	ForceRmTmpContainer bool               `qs:"forcerm"`
+	RawJSONStream       bool               `qs:"-"`
 }
 
 // BuildArg represents arguments that can be passed to the image when building
@@ -557,7 +557,7 @@ func (c *Client) BuildImage(opts BuildImageOptions) error {
 	})
 }
 
-func (c *Client) versionedAuthConfigs(authConfigs AuthConfigurations) interface{} {
+func (c *Client) versionedAuthConfigs(authConfigs AuthConfigurations) registryAuth {
 	if c.serverAPIVersion == nil {
 		c.checkAPIVersion()
 	}
@@ -609,24 +609,18 @@ func isURL(u string) bool {
 	return p.Scheme == "http" || p.Scheme == "https"
 }
 
-func headersWithAuth(auths ...interface{}) (map[string]string, error) {
+func headersWithAuth(auths ...registryAuth) (map[string]string, error) {
 	var headers = make(map[string]string)
 
 	for _, auth := range auths {
-		switch auth.(type) {
-		case AuthConfiguration:
-			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(auth); err != nil {
-				return nil, err
-			}
-			headers["X-Registry-Auth"] = base64.URLEncoding.EncodeToString(buf.Bytes())
-		case AuthConfigurations, AuthConfigurations119:
-			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(auth); err != nil {
-				return nil, err
-			}
-			headers["X-Registry-Config"] = base64.URLEncoding.EncodeToString(buf.Bytes())
+		if auth.isEmpty() {
+			continue
 		}
+		data, err := json.Marshal(auth)
+		if err != nil {
+			return nil, err
+		}
+		headers[auth.headerKey()] = base64.URLEncoding.EncodeToString(data)
 	}
 
 	return headers, nil

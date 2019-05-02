@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/Webstrates/golem-herder/container"
 	"github.com/Webstrates/golem-herder/metering"
 	jwt "github.com/dgrijalva/jwt-go"

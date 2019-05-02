@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/Webstrates/golem-herder/container"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
