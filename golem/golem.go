@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/Webstrates/golem-herder/container"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 
 	docker "github.com/fsouza/go-dockerclient"

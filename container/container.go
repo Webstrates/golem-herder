@@ -108,6 +108,14 @@ func WithLabel(label, value string) func(container *docker.APIContainers) bool {
 	}
 }
 
+// WithState returns a func to match a container's state (for use with e.g. List)
+func WithState(state string) func(container *docker.APIContainers) bool {
+	return func(container *docker.APIContainers) bool {
+		fmt.Println(container.State)
+		return container.State == state
+	}
+}
+
 // LoadFiles will load the given files into the dir for container usage
 func LoadFiles(dir string, files map[string][]byte) error {
 

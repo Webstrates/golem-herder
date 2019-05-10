@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/Webstrates/golem-herder/container"
 	"github.com/Webstrates/golem-herder/metering"
 	jwt "github.com/dgrijalva/jwt-go"
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -318,5 +320,51 @@ func KillHandler(w http.ResponseWriter, r *http.Request, token *jwt.Token) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+}
 
+// ProxyHandler proxies requests to daemons
+func ProxyHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	name, ok := vars["name"]
+	if !ok {
+		log.Warn("No name given")
+		http.Error(w, "No name given", 404)
+		return
+	}
+
+	predicate := container.And(container.WithName(name), container.WithState("running"))
+	containers, err := container.List(nil, predicate, true)
+	if err != nil {
+		http.Error(w, "Failed to look for container", 500)
+		return
+	}
+
+	if len(containers) != 1 {
+		http.Error(w, "No container found", 404)
+		return
+	}
+
+	container := containers[0]
+	if len(container.Ports) < 1 {
+		http.Error(w, "No exposed ports found", 500)
+		return
+	}
+
+	port := container.Ports[0].PublicPort
+
+	log.WithField("status", container.Status).
+		WithField("ports", container.Ports).
+		WithField("networks", container.Networks).
+		Info("Found container")
+
+	target, err := url.Parse(fmt.Sprintf("http://localhost:%d", port))
+	if err != nil {
+		http.Error(w, "Invalid proxy endpoint", 404)
+		return
+	}
+
+	log.WithField("container", name).Info("Proxy request made")
+
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.ServeHTTP(w, r)
 }

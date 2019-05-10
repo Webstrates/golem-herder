@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/Webstrates/golem-herder/daemon"
 	"github.com/Webstrates/golem-herder/herder"
 	"github.com/Webstrates/golem-herder/minion"
 	"github.com/Webstrates/golem-herder/token"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -67,7 +67,7 @@ var serveCmd = &cobra.Command{
 		dv1.HandleFunc("/ls", token.ValidatedHandler(m, daemon.ListHandler))
 		dv1.HandleFunc("/kill/{name}", token.ValidatedHandler(m, daemon.KillHandler))
 		dv1.HandleFunc("/attach/{name}", token.ValidatedHandler(m, daemon.AttachHandler))
-
+		dv1.HandleFunc("/proxy/{name}", daemon.ProxyHandler)
 		// Tokens
 		//r.HandleFunc("/token/v1/generate", token.GenerateHandler)
 		//r.HandleFunc("/token/v1/inspect/{token}", meter.InspectHandler)
