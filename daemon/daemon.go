@@ -111,7 +111,8 @@ func Attach(token *jwt.Token, name string, in <-chan []byte, out chan<- []byte) 
 	if !ok {
 		return fmt.Errorf("Could not extract claims from token")
 	}
-	cs, err := container.List(nil, container.WithLabel("subject", claims["sub"].(string)), true)
+	predicate := container.And(container.WithName(name), container.WithLabel("subject", claims["sub"].(string)))
+	cs, err := container.List(nil, predicate, true)
 	if err != nil {
 		return err
 	}
