@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/boltdb/bolt"
+	log "github.com/sirupsen/logrus"
 )
 
 var db *bolt.DB
@@ -26,7 +26,7 @@ func init() {
 
 // NewMeter returns a new Meter for the given token
 // Database is structured as follows:
-// Each token has a Bucket with the token id as name.
+// Each token has a Bucket with the email as name.
 // Each Bucket has the following properties:
 // * Credits
 func NewMeter(id string, token string, expiration int, credits int) (*Meter, error) {
@@ -67,6 +67,31 @@ func NewMeter(id string, token string, expiration int, credits int) (*Meter, err
 		return nil, err
 	}
 	return &Meter{ID: id, db: db}, nil
+}
+
+// Credits by email
+func Credits(email string) (int, bool) {
+	var credits int
+	err := db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(email))
+		if b == nil {
+			return nil
+		}
+		c := b.Get([]byte("Credits"))
+		if c != nil {
+			var err error
+			credits, err = strconv.Atoi(string(c))
+
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return -1, false
+	}
+	return credits, true
 }
 
 // Meter will keep track of resources for a given minion or daemon

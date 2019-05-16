@@ -2,20 +2,21 @@ package token
 
 import (
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/rs/xid"
-)
+	meter "github.com/Webstrates/golem-herder/metering"
 
-type Validator interface {
-	Validate(token string) (*jwt.Token, error)
-}
+	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/gorilla/mux"
+	"github.com/rs/xid"
+	log "github.com/sirupsen/logrus"
+)
 
 type Generator interface {
 	Generate(subject string, claims jwt.MapClaims) (*jwt.Token, error)
@@ -77,9 +78,11 @@ func (tm *Manager) Validate(token string) (*jwt.Token, error) {
 	if err == nil && jwtToken.Valid {
 		return jwtToken, nil
 	}
+
 	return nil, err
 }
 
+// Generate creates a token string.
 func (tm *Manager) Generate(subject string, claims jwt.MapClaims) (string, error) {
 	guid := xid.New()
 	coreClaims := jwt.MapClaims{
@@ -123,19 +126,36 @@ func tokenFromQueryParam(r *http.Request) (string, bool) {
 	return "", false
 }
 
+func emailFromQueryParam(r *http.Request) (string, bool) {
+	email := r.URL.Query().Get("email")
+	if email != "" {
+		return email, true
+	}
+	return "", false
+}
+
+func creditsFromQueryParam(r *http.Request) (int, bool) {
+	creditsStr := r.URL.Query().Get("credits")
+	if creditsStr != "" {
+		credits, err := strconv.Atoi(creditsStr)
+		if err == nil {
+			return credits, true
+		}
+	}
+	return 0, false
+}
+
 // ValidatedHandler will return a http handler which validates a request prior to invoking the given handler.
-func ValidatedHandler(validator Validator, handler func(w http.ResponseWriter, r *http.Request, token *jwt.Token)) func(w http.ResponseWriter, r *http.Request) {
+func ValidatedHandler(m *Manager, handler func(w http.ResponseWriter, r *http.Request, token *jwt.Token)) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		token, ok := tokenFromHeader(r)
 		if !ok {
 			token, _ = tokenFromQueryParam(r)
-			log.Info("Got token from query")
 		} else {
-			log.Info("Got token from header")
 		}
 
-		t, err := validator.Validate(token)
+		t, err := m.Validate(token)
 		if err != nil {
 			log.WithError(err).Warn("Unauthorized")
 			http.Error(w, err.Error(), 401 /* Unauthorized */)
@@ -147,5 +167,85 @@ func ValidatedHandler(validator Validator, handler func(w http.ResponseWriter, r
 			return
 		}
 		handler(w, r, t)
+	}
+}
+
+// Token is used to create a JSON object.
+type TokenReply struct {
+	Token   string `json:"token"`
+	Email   string `json:"email"`
+	Credits int    `json:"credits"`
+}
+
+// GenerateHandler will return a http handler to generate tokens.
+func GenerateHandler(m *Manager, tokenPassword string) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if tokenPassword == "" {
+			log.Warn("Trying to generate token with no token password set")
+			http.Error(w, "No token password set", 405 /* Method Not Allowed */)
+			return
+		}
+		password := r.URL.Query().Get("password")
+		if password != tokenPassword {
+			log.WithField("password", password).Warn("Unauthorized")
+			http.Error(w, "Invalid password", 401 /* Unauthorized */)
+			return
+		}
+
+		email, ok := emailFromQueryParam(r)
+		if !ok {
+			email = "none"
+		}
+
+		credits, ok := creditsFromQueryParam(r)
+		if !ok {
+			credits = 3e4
+		}
+
+		token, _ := m.Generate(email, jwt.MapClaims{"crd": credits})
+		log.WithField("email", email).WithField("credits", credits).Info("Generated token")
+
+		reply := &TokenReply{token, email, credits}
+		s, err := json.Marshal(reply)
+		if err != nil {
+			log.WithError(err).Warn("Failed to create json response")
+			http.Error(w, "Failed to generate token", 500 /* Internal Server Error */)
+		}
+		w.Write(s)
+	}
+}
+
+// InspectHandler handles requests to see remaining credits for a token.
+func InspectHandler(m *Manager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		token, ok := vars["token"]
+		if !ok {
+			http.Error(w, "No token found", 404 /* Not Found */)
+			return
+		}
+
+		t, err := m.Validate(token)
+		if err != nil {
+			http.Error(w, err.Error(), 404 /* Not Found */)
+			return
+		}
+
+		claims, ok := t.Claims.(jwt.MapClaims)
+		email := claims["sub"].(string)
+
+		credits, ok := meter.Credits(string(email))
+		if !ok {
+			http.Error(w, "No token found", 404 /* Not Found */)
+			return
+		}
+
+		reply := &TokenReply{token, email, credits}
+		s, err := json.Marshal(reply)
+		if err != nil {
+			log.WithError(err).Warn("Failed to create json response")
+			http.Error(w, "Failed to generate token", 500 /* Internal Server Error */)
+		}
+		w.Write(s)
 	}
 }

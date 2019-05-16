@@ -18,8 +18,9 @@ import (
 )
 
 var (
-	port     int
-	mountdir string
+	port          int
+	mountdir      string
+	tokenPassword string
 )
 
 // serveCmd represents the serve command
@@ -69,8 +70,8 @@ var serveCmd = &cobra.Command{
 		dv1.HandleFunc("/attach/{name}", token.ValidatedHandler(m, daemon.AttachHandler))
 		dv1.HandleFunc("/proxy/{name}", daemon.ProxyHandler)
 		// Tokens
-		//r.HandleFunc("/token/v1/generate", token.GenerateHandler)
-		//r.HandleFunc("/token/v1/inspect/{token}", meter.InspectHandler)
+		r.HandleFunc("/token/v1/generate", token.GenerateHandler(m, tokenPassword))
+		r.HandleFunc("/token/v1/inspect/{token}", token.InspectHandler(m))
 
 		srv := &http.Server{
 			Handler:   handlers.CORS()(r),
@@ -95,6 +96,7 @@ func init() {
 	serveCmd.Flags().String("url", "emet.cc.au.dk", "The url which this herder can be accessed at. This url should be reachable from the containers/golems running on this machine or - if using the proxy - the proxy")
 	serveCmd.Flags().String("webstrates", "webstrates", "The location of the webstrates server - if using the proxy this should be left to the default value (webstrates)")
 	serveCmd.Flags().String("golem", "latest", "The version (tag) of the golem image (https://hub.docker.com/r/webstrates/golem/tags/) to use.")
+	serveCmd.Flags().StringVarP(&tokenPassword, "token-password", "k", "", "Password required to generate tokens.")
 
 	if err := viper.BindPFlags(serveCmd.Flags()); err != nil {
 		log.WithError(err).Warn("Could not bind flags.")

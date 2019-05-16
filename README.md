@@ -40,9 +40,13 @@ A controlled minion is usually spawned by the golem by letting it send an http P
 
 ### Daemons
 
-A **daemon** is conceptually the same as a *controlled minion*, however a daemon my be longlived. In order to spawn a daemon you must have a token, to obtain a token for the emet.cc.au golem-herder contact jonathan@cc.au.dk. A daemon has a simple life-cycle:
+A **daemon** is conceptually the same as a *controlled minion*, however a daemon my be longlived. In order to spawn a daemon you must have a token. Tokens can be generated from the command line with
 
- * **Start a daemon** by sending an http POST request to: `http(s)://<herder-location>/daemon/v1/spawn`. The request should contain the following form variables:
+    ./golem-herder token -e <email address> [-c <number of credits>]
+
+The golem-herder must not be running when doing this. Or using the POST method explained below.
+
+ * **Start a daemon** by sending an POST request to: `http(s)://<herder-location>/daemon/v1/spawn`. The request should contain the following form variables:
    - `name` is the name of daemon - this must be unique for the token used
    - `image` is the docker image that contains the daemon code
    - `ports` are a list of ports (json-formatted list of strings) which should be opened in the container
@@ -54,7 +58,18 @@ A **daemon** is conceptually the same as a *controlled minion*, however a daemon
 
  * **Attach to a deamons stdout/err/in** via websockets `ws(s)://<herder-location>/daemon/v1/attach/<name-of-daemon>`
 
-For all commands you need to supply a token ([JWT](https://jwt.io)). This can be done in the header in the format `Authorization: bearer <token>` or as a query param e.g. `...?token=<token>`.
+ * **Access exposed port of daemon through reverse proxy** `ws(s)://<herder-location>/daemon/v1/attach/<name-of-daemon>` (The reverse proxy will be to the first defined port in `ports`. E.g. if `ports` is defined as [80, 8080], the URL will proxy the user to port 80 in the container.)
+
+* **Generate token** by sending  POST request to `http(s)://<herder-location>/token/v1/generate`. The request should contain the following form variables:
+   - `password` The password specified using `--token-password` to the golem-herder on the command line when starting it.
+   - `email` The email address (or any identifier) for the owner of the token.
+   - (optional) `credits` The amount of credits on the token. Defaults to 30000.
+
+* **Inspect token** by sending a GET request to `http(s)://<herder-location>/token/v1/inspect/<token>`. This will give you a JSON object back with the associated email, the remaining credits, (and the token).
+
+For all commands (except token generation) you need to supply a token ([JWT](https://jwt.io)). This can be done in the header in the format `Authorization: bearer <token>` or as a query param e.g. `...?token=<token>`.
+
+Credits are associated with email addresses not tokens themselves, so when generating a token, the credits specified will added to specified email address' credit score and be usable by all existing and newer tokens.
 
 ## Installation
 
